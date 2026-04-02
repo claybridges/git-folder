@@ -303,3 +303,104 @@ func TestCmdRenameBadArgs(t *testing.T) {
 		t.Fatal("expected error for one arg")
 	}
 }
+
+// --- Not-a-repo error paths ---
+
+func inNonRepo(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	inDir(t, dir)
+}
+
+func TestCmdListNotARepo(t *testing.T) {
+	inNonRepo(t)
+	if err := cmdList([]string{"foo"}); err == nil {
+		t.Fatal("expected error outside git repo")
+	}
+}
+
+func TestCmdIncrementNotARepo(t *testing.T) {
+	inNonRepo(t)
+	if err := cmdIncrement([]string{"foo"}); err == nil {
+		t.Fatal("expected error outside git repo")
+	}
+}
+
+func TestCmdDeleteNotARepo(t *testing.T) {
+	inNonRepo(t)
+	if err := cmdDelete([]string{"foo"}); err == nil {
+		t.Fatal("expected error outside git repo")
+	}
+}
+
+func TestCmdRenameNotARepo(t *testing.T) {
+	inNonRepo(t)
+	if err := cmdRename([]string{"foo", "bar"}); err == nil {
+		t.Fatal("expected error outside git repo")
+	}
+}
+
+// --- main() / usage() via subprocess ---
+
+func TestMainHelp(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperMain", "--", "help")
+	cmd.Env = append(os.Environ(), "GIT_FOLDER_TEST_MAIN=1")
+	out, _ := cmd.CombinedOutput()
+	if !strings.Contains(string(out), "usage:") {
+		t.Errorf("expected usage output, got: %s", out)
+	}
+}
+
+func TestMainNoArgs(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperMain", "--")
+	cmd.Env = append(os.Environ(), "GIT_FOLDER_TEST_MAIN=1")
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("expected non-zero exit for no args")
+	}
+}
+
+func TestMainUnknownCommand(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperMain", "--", "bogus")
+	cmd.Env = append(os.Environ(), "GIT_FOLDER_TEST_MAIN=1")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected non-zero exit for unknown command")
+	}
+	if !strings.Contains(string(out), "unknown command") {
+		t.Errorf("expected 'unknown command', got: %s", out)
+	}
+}
+
+// Helper process that runs main() — invoked by TestMain* tests above.
+func TestHelperMain(t *testing.T) {
+	if os.Getenv("GIT_FOLDER_TEST_MAIN") != "1" {
+		return
+	}
+	// Strip test flags, keep args after "--"
+	args := []string{"git-folder"}
+	for i, a := range os.Args {
+		if a == "--" {
+			args = append(args, os.Args[i+1:]...)
+			break
+		}
+	}
+	os.Args = args
+	main()
+}
+
+// --- Delete failure (branch checked out) ---
+
+func TestCmdDeleteFailsOnCheckedOut(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "doomed/1")
+
+	withStdin(t, "y\n")
+
+	err := cmdDelete([]string{"doomed"})
+	if err == nil {
+		t.Fatal("expected error deleting checked-out branch")
+	}
+}
