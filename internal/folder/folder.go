@@ -75,9 +75,15 @@ func CurrentFolder() (string, error) {
 	return "", nil
 }
 
-func git(args ...string) (string, error) {
+// GitRunner executes a git command and returns trimmed output.
+// Override in tests to inject errors.
+var GitRunner = func(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	out, err := cmd.Output()
 	return strings.TrimSpace(string(out)), err
+}
+
+func git(args ...string) (string, error) {
+	return GitRunner(args...)
 }
 

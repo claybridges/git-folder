@@ -1,6 +1,7 @@
 package folder
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
@@ -212,5 +213,46 @@ func TestCurrentFolderDetached(t *testing.T) {
 	}
 	if cur != "" {
 		t.Errorf("got %q, want empty on detached HEAD", cur)
+	}
+}
+
+// --- Mock tests for git error paths ---
+
+func withMockGit(t *testing.T, fn func(args ...string) (string, error)) {
+	t.Helper()
+	orig := GitRunner
+	GitRunner = fn
+	t.Cleanup(func() { GitRunner = orig })
+}
+
+func failGit(args ...string) (string, error) {
+	return "", fmt.Errorf("mock git failure")
+}
+
+func TestEnumerateGitError(t *testing.T) {
+	withMockGit(t, failGit)
+	_, err := Enumerate("foo")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestLastNumberGitError(t *testing.T) {
+	withMockGit(t, failGit)
+	_, err := LastNumber("foo")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCurrentFolderGitError(t *testing.T) {
+	withMockGit(t, failGit)
+	cur, err := CurrentFolder()
+	// git error on symbolic-ref is treated as "not on a branch"
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cur != "" {
+		t.Errorf("got %q, want empty on git error", cur)
 	}
 }
