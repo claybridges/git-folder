@@ -22,6 +22,8 @@ func main() {
 		err = cmdList(os.Args[2:])
 	case "increment", "inc":
 		err = cmdIncrement(os.Args[2:])
+	case "last-number", "ln":
+		err = cmdLastNumber(os.Args[2:])
 	case "delete", "rm":
 		err = cmdDelete(os.Args[2:])
 	case "rename", "mv":
@@ -46,10 +48,11 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `usage: git folder <command> [args]
 
 commands:
-  list   (ls)     <folder>          list branches in folder
-  increment (inc) [folder]          create next numbered branch
-  delete (rm)     <folder>          delete all branches in folder
-  rename (mv)     <old> <new>       rename folder prefix
+  list        (ls) <folder>          list branches in folder
+  last-number (ln) <folder>         print highest numbered branch
+  increment   (inc) [folder]        create next numbered branch
+  delete      (rm) <folder>         delete all branches in folder
+  rename      (mv) <old> <new>      rename folder prefix
 `)
 }
 
@@ -69,6 +72,20 @@ func cmdList(args []string) error {
 	for _, b := range branches {
 		fmt.Println(b)
 	}
+	return nil
+}
+
+func cmdLastNumber(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: git folder last-number <folder>")
+	}
+
+	n, err := folder.LastNumber(args[0])
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(n)
 	return nil
 }
 
@@ -197,6 +214,8 @@ _git-folder() {
     commands=(
         'list:list branches in a folder'
         'ls:list branches in a folder'
+        'last-number:print highest numbered branch'
+        'ln:print highest numbered branch'
         'increment:create next numbered branch'
         'inc:create next numbered branch'
         'delete:delete all branches in a folder'
@@ -217,7 +236,7 @@ _git-folder() {
             ;;
         args)
             case $words[1] in
-                list|ls|delete|rm|increment|inc|rename|mv)
+                list|ls|last-number|ln|delete|rm|increment|inc|rename|mv)
                     _git-folder-folders
                     ;;
             esac

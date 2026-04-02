@@ -93,6 +93,45 @@ func TestCmdListBadArgs(t *testing.T) {
 	}
 }
 
+// --- cmdLastNumber ---
+
+func TestCmdLastNumber(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "foo/1")
+	run(t, dir, "git", "branch", "foo/5")
+	run(t, dir, "git", "branch", "foo/3")
+
+	err := cmdLastNumber([]string{"foo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCmdLastNumberEmpty(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	err := cmdLastNumber([]string{"nonexistent"})
+	if err == nil {
+		t.Fatal("expected error for nonexistent folder")
+	}
+}
+
+func TestCmdLastNumberBadArgs(t *testing.T) {
+	if err := cmdLastNumber(nil); err == nil {
+		t.Fatal("expected error for no args")
+	}
+}
+
+func TestCmdLastNumberNotARepo(t *testing.T) {
+	inNonRepo(t)
+	if err := cmdLastNumber([]string{"foo"}); err == nil {
+		t.Fatal("expected error outside git repo")
+	}
+}
+
 // --- cmdIncrement ---
 
 func TestCmdIncrementExplicit(t *testing.T) {
