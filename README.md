@@ -7,7 +7,7 @@ Organize branches into folders like `feature/1`, `feature/2`, `feature/3` and ma
 ## Install
 
 ```
-go install github.com/clayb/git-folder/cmd/git-folder@latest
+go install github.com/claybridges/git-folder/cmd/git-folder@latest
 ```
 
 ## Usage

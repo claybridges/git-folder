@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/clayb/git-folder/internal/folder"
+	"github.com/claybridges/git-folder/internal/folder"
 )
 
 func main() {
