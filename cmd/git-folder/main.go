@@ -26,6 +26,8 @@ func main() {
 		err = cmdDelete(os.Args[2:])
 	case "rename", "mv":
 		err = cmdRename(os.Args[2:])
+	case "completion":
+		cmdCompletion()
 	case "help", "--help", "-h":
 		usage()
 	default:
@@ -182,6 +184,56 @@ func cmdRename(args []string) error {
 		}
 	}
 	return nil
+}
+
+func cmdCompletion() {
+	fmt.Print(`#compdef git-folder
+
+# Place in your fpath or run:
+#   git-folder completion > ~/.zsh/completions/_git-folder
+
+_git-folder() {
+    local -a commands
+    commands=(
+        'list:list branches in a folder'
+        'ls:list branches in a folder'
+        'increment:create next numbered branch'
+        'inc:create next numbered branch'
+        'delete:delete all branches in a folder'
+        'rm:delete all branches in a folder'
+        'rename:rename a folder prefix'
+        'mv:rename a folder prefix'
+        'completion:output zsh completion script'
+        'help:show usage'
+    )
+
+    _arguments -C \
+        '1:command:->cmd' \
+        '*::arg:->args'
+
+    case $state in
+        cmd)
+            _describe 'command' commands
+            ;;
+        args)
+            case $words[1] in
+                list|ls|delete|rm|increment|inc|rename|mv)
+                    _git-folder-folders
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_git-folder-folders() {
+    local -a folders
+    folders=(${(u)${(f)"$(git branch --format='%(refname:short)' 2>/dev/null | grep '/' | sed 's|/.*||')"}})
+    [[ ${#folders} -gt 0 ]] && compadd -- "${folders[@]}"
+}
+
+# Also hook into 'git folder' as a git subcommand
+_git-folder "$@"
+`)
 }
 
 func gitExec(args ...string) error {
