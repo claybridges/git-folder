@@ -132,21 +132,21 @@ Other useful targets:
 - `make clean` - Remove built artifacts
 - `make help` - Show all available targets
 
-### Toggle between brew and dev versions
+### Switch between brew and dev versions
 
-To toggle between the Homebrew-installed version and a local development build:
+Switch to local development version:
 
 ```bash
-./toggleInstallBrewOrDev.sh
+make use-dev
 ```
 
-This script:
-- Detects which version is currently active
-- Switches between brew and local dev versions
-- Automatically builds the local version when switching to dev mode
-- Displays the active version after switching
+Switch back to Homebrew version:
 
-**Note:** The script installs to `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin` (whichever exists first). Ensure the chosen directory is in your PATH.
+```bash
+make use-brew
+```
+
+**Note:** The dev version installs to `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin` (whichever exists first). Ensure the chosen directory is in your PATH.
 
 
 
