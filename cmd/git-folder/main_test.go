@@ -713,3 +713,217 @@ func TestForceFlag(t *testing.T) {
 		forceFlag = false
 	})
 }
+
+// --- Checked-out branch tests ---
+
+func TestDeleteCheckedOutBranch(t *testing.T) {
+	t.Run("without force - should error", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "test/1")
+
+		forceFlag = false
+		err := cmdDelete([]string{"test"})
+		if err == nil {
+			t.Fatal("expected error when deleting checked-out branch")
+		}
+		if !strings.Contains(err.Error(), "currently checked out") {
+			t.Fatalf("expected 'currently checked out' error, got: %v", err)
+		}
+
+		// Branch should still exist
+		branches := branchList(t, dir, "test/*")
+		if len(branches) != 1 {
+			t.Fatalf("expected branch to still exist, got: %v", branches)
+		}
+	})
+
+	t.Run("with force - should detach and delete", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "test/1")
+
+		forceFlag = true
+		err := cmdDelete([]string{"test"})
+		if err != nil {
+			t.Fatalf("unexpected error with --force: %v", err)
+		}
+
+		// Branch should be deleted
+		branches := branchList(t, dir, "test/*")
+		if len(branches) != 0 {
+			t.Fatalf("expected branch to be deleted, got: %v", branches)
+		}
+
+
+		// Should be in detached HEAD state
+		cmd := exec.Command("git", "symbolic-ref", "--quiet", "--short", "HEAD")
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		// Command should fail (exit 1) when in detached HEAD
+		if err == nil {
+			t.Fatalf("expected detached HEAD (command should fail), got branch: %v", strings.TrimSpace(string(out)))
+		}
+
+	})
+}
+
+func TestDeleteUptoCheckedOutBranch(t *testing.T) {
+	t.Run("without force - should error", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "test/1")
+		run(t, dir, "git", "checkout", "-b", "test/2")
+		run(t, dir, "git", "checkout", "-b", "test/3")
+		run(t, dir, "git", "checkout", "test/1")
+
+		forceFlag = false
+		err := cmdDeleteUpto([]string{"test", "3"})
+		if err == nil {
+			t.Fatal("expected error when deleting checked-out branch")
+		}
+		if !strings.Contains(err.Error(), "currently checked out") {
+			t.Fatalf("expected 'currently checked out' error, got: %v", err)
+		}
+
+		// Branches should still exist
+		branches := branchList(t, dir, "test/*")
+		if len(branches) != 3 {
+			t.Fatalf("expected all branches to still exist, got: %v", branches)
+		}
+	})
+
+	t.Run("with force - should detach and delete", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "test/1")
+		run(t, dir, "git", "checkout", "-b", "test/2")
+		run(t, dir, "git", "checkout", "-b", "test/3")
+		run(t, dir, "git", "checkout", "test/1")
+
+		forceFlag = true
+		err := cmdDeleteUpto([]string{"test", "3"})
+		if err != nil {
+			t.Fatalf("unexpected error with --force: %v", err)
+		}
+
+		// test/1 and test/2 should be deleted
+		branches := branchList(t, dir, "test/*")
+		if len(branches) != 1 || branches[0] != "test/3" {
+			t.Fatalf("expected only test/3, got: %v", branches)
+		}
+
+		forceFlag = false
+	})
+}
+
+func TestRenameCheckedOutBranch(t *testing.T) {
+	t.Run("without force - should error", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "old/1")
+
+		forceFlag = false
+		err := cmdRename([]string{"old", "new"})
+		if err == nil {
+			t.Fatal("expected error when renaming checked-out branch")
+		}
+		if !strings.Contains(err.Error(), "currently checked out") {
+			t.Fatalf("expected 'currently checked out' error, got: %v", err)
+		}
+
+		// Old branch should still exist
+		old := branchList(t, dir, "old/*")
+		if len(old) != 1 {
+			t.Fatalf("expected old branch to still exist, got: %v", old)
+		}
+	})
+
+	t.Run("with force - should detach and rename", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "old/1")
+
+		forceFlag = true
+		err := cmdRename([]string{"old", "new"})
+		if err != nil {
+			t.Fatalf("unexpected error with --force: %v", err)
+		}
+
+		// Old branch should be renamed
+		old := branchList(t, dir, "old/*")
+		new := branchList(t, dir, "new/*")
+		if len(old) != 0 {
+			t.Fatalf("expected old branch to be renamed, got: %v", old)
+		}
+		if len(new) != 1 || new[0] != "new/1" {
+			t.Fatalf("expected new/1, got: %v", new)
+		}
+
+		// Should be in detached HEAD state
+		cmd := exec.Command("git", "symbolic-ref", "--quiet", "--short", "HEAD")
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		// Command should fail (exit 1) when in detached HEAD
+		if err == nil {
+			t.Fatalf("expected detached HEAD (command should fail), got branch: %v", strings.TrimSpace(string(out)))
+		}
+
+		forceFlag = false
+	})
+}
+
+func TestDeleteBranchInWorktree(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "test/1")
+	run(t, dir, "git", "checkout", "main")
+
+	// Create worktree
+	wtDir := dir + "/wt"
+	run(t, dir, "git", "worktree", "add", wtDir, "test/1")
+
+	// Should error even with --force
+	forceFlag = true
+	err := cmdDelete([]string{"test"})
+	if err == nil {
+		t.Fatal("expected error when deleting branch in worktree")
+	}
+	if !strings.Contains(err.Error(), "worktree") {
+		t.Fatalf("expected 'worktree' error, got: %v", err)
+	}
+
+	// Branch should still exist
+	branches := branchList(t, dir, "test/*")
+	if len(branches) != 1 {
+		t.Fatalf("expected branch to still exist, got: %v", branches)
+	}
+
+	forceFlag = false
+}
+
+func TestDeleteMultipleBranchesInWorktrees(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "test/1")
+	run(t, dir, "git", "checkout", "-b", "test/2")
+	run(t, dir, "git", "checkout", "main")
+
+	// Create worktrees for both
+	run(t, dir, "git", "worktree", "add", dir+"/wt1", "test/1")
+	run(t, dir, "git", "worktree", "add", dir+"/wt2", "test/2")
+
+	// Should error and list both branches
+	forceFlag = true
+	err := cmdDelete([]string{"test"})
+	if err == nil {
+		t.Fatal("expected error when deleting branches in worktrees")
+	}
+	if !strings.Contains(err.Error(), "test/1") || !strings.Contains(err.Error(), "test/2") {
+		t.Fatalf("expected both branches listed, got: %v", err)
+	}
+
+	forceFlag = false
+}

@@ -42,6 +42,58 @@ func confirm(prompt string) bool {
 	return answer == "y"
 }
 
+func checkBranchesNotCheckedOut(branches []string) error {
+	// Get current branch
+	out, _ := exec.Command("git", "symbolic-ref", "--quiet", "--short", "HEAD").Output()
+	current := strings.TrimSpace(string(out))
+
+	var checkedOutInWorktrees []string
+
+	// Check if current branch is in list
+	for _, b := range branches {
+		if b == current {
+			if forceFlag {
+				// Detach HEAD at current commit so we can modify the branch
+				fmt.Printf("Detaching HEAD from '%s' (branch is being modified)\n", b)
+				if err := gitExec("checkout", "--detach"); err != nil {
+					return fmt.Errorf("failed to detach HEAD: %w", err)
+				}
+			} else {
+				return fmt.Errorf("cannot modify branch '%s': currently checked out (use --force to detach)", b)
+			}
+		}
+	}
+
+	// Check worktrees
+	out, err := exec.Command("git", "worktree", "list", "--porcelain").Output()
+	if err != nil {
+		// If worktree command fails, continue (no worktrees or git doesn't support it)
+		return nil
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "branch ") {
+			continue
+		}
+		wtBranch := strings.TrimPrefix(line, "branch refs/heads/")
+		for _, b := range branches {
+			if b == wtBranch {
+				checkedOutInWorktrees = append(checkedOutInWorktrees, b)
+			}
+		}
+	}
+
+	if len(checkedOutInWorktrees) > 0 {
+		if len(checkedOutInWorktrees) == 1 {
+			return fmt.Errorf("cannot modify branch '%s': checked out in a worktree", checkedOutInWorktrees[0])
+		}
+		return fmt.Errorf("cannot modify branches: checked out in worktrees: %s", strings.Join(checkedOutInWorktrees, ", "))
+	}
+
+	return nil
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		usage()
@@ -203,6 +255,11 @@ func cmdDelete(args []string) error {
 		return fmt.Errorf("no branches in folder %s/", name)
 	}
 
+	// Check if any branches are checked out
+	if err := checkBranchesNotCheckedOut(branches); err != nil {
+		return err
+	}
+
 	fmt.Printf("delete all branches in folder %s/:\n", name)
 	for _, b := range branches {
 		fmt.Printf("  %s\n", b)
@@ -252,6 +309,11 @@ func cmdDeleteUpto(args []string) error {
 		return fmt.Errorf("no numbered branches below %v in folder %s/", n, folderName)
 	}
 
+	// Check if any branches to delete are checked out
+	if err := checkBranchesNotCheckedOut(toDelete); err != nil {
+		return err
+	}
+
 	fmt.Printf("keep:\n")
 	for _, b := range toKeep {
 		fmt.Printf("  %s\n", b)
@@ -288,6 +350,11 @@ func cmdRename(args []string) error {
 	}
 	if len(sources) == 0 {
 		return fmt.Errorf("no branches in folder %s/", oldName)
+	}
+
+	// Check if any source branches are checked out
+	if err := checkBranchesNotCheckedOut(sources); err != nil {
+		return err
 	}
 
 	// Check for conflicts
