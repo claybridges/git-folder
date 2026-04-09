@@ -1,0 +1,86 @@
+.TH GIT-FOLDER 1 "2026-04-09" "git-folder" "Git Manual"
+.SH NAME
+git-folder \- manage groups of git branches as folders
+.SH SYNOPSIS
+.B git folder
+.I <command>
+.RI [ options ]
+.RI [ args ]
+.SH DESCRIPTION
+.B git-folder
+is a git subcommand for managing groups of branches as folders. It focuses on managing sequences of numbers, like
+.IR async/1 ,
+.IR async/2 ,
+etc.
+
+The tool helps preserve work during iterative development by maintaining numbered branch sequences, so you can experiment freely while keeping prior work accessible.
+
+When iterating on an idea, it's sometimes useful to keep prior branches around. In case of a failed experiment, this can spare you from lost time poring over a crowded reflog. Or sometimes, it's handy to preserve a series of commits you made during development; but you also need to squash and rebase that work to move forward.
+.SH COMMANDS
+.TP
+.B delete <folder>
+Delete all branches in folder
+.TP
+.B delete-upto <folder> <n>
+Delete numbered branches below n
+.TP
+.B increment [folder]
+Create and checkout next numbered branch
+.TP
+.B last-number [folder]
+Print highest numbered branch
+.TP
+.B list [folder]
+List branches in folder
+.TP
+.B rename <existing> <new>
+Rename folder prefix
+.SH OPTIONS
+.TP
+.B \-\-force
+Skip confirmation prompts
+.TP
+.B \-\-nocheckout
+(increment only) Create branch without checking out
+.SH NOTES
+When
+.I [folder]
+is omitted, defaults to folder of current branch, if applicable.
+
+The
+.B delete
+and
+.B delete-upto
+commands have confirmation prompts (skipped with \-\-force).
+
+The
+.B increment
+command errors if any other than the highest branch is used for the default. If folder is specified (rather than using default), creates a new branch from the highest numbered branch.
+.SH EXAMPLES
+Create a series of branches while working on an async conversion:
+.PP
+.nf
+.RS
+$ git checkout -b async/1
+$ # ... make 7 commits ...
+$ git folder increment
+creating async/2
+$ # ... squash and rebase ...
+$ git folder list async
+async/1
+async/2
+.RE
+.fi
+.PP
+Delete old experimental branches:
+.PP
+.nf
+.RS
+$ git folder delete-upto async 3
+.RE
+.fi
+.SH AUTHOR
+Clay Bridges
+.SH SEE ALSO
+.BR git (1),
+.BR git-branch (1)
