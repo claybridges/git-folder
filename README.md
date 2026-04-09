@@ -109,6 +109,24 @@ confirm? y/N
 
 ## Development
 
+### Setup
+
+Install development dependencies:
+
+```bash
+brew bundle
+```
+
+### Running CI locally
+
+Run all CI checks (tests, lint, build):
+
+```bash
+bin/ci
+```
+
+### Toggle between brew and dev versions
+
 To toggle between the Homebrew-installed version and a local development build:
 
 ```bash
