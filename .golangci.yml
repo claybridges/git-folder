@@ -1,16 +1,17 @@
+version: "2"
+
 linters:
   enable:
-    - gofmt
     - govet
     - staticcheck
     - unused
     - errcheck
-    - gosimple
     - ineffassign
+  settings:
+    govet:
+      enable:
+        - shadow
 
-linters-settings:
-  govet:
-    check-shadowing: true
-
-issues:
-  exclude-use-default: false
+formatters:
+  enable:
+    - gofmt

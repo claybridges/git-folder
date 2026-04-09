@@ -1,0 +1,92 @@
+version: '3'
+
+vars:
+  BINARY_NAME: git-folder
+  LOCAL_BIN_DIR:
+    sh: |
+      if [ -n "$XDG_BIN_HOME" ]; then
+        echo "$XDG_BIN_HOME"
+      elif [ -d "$HOME/.local/bin" ]; then
+        echo "$HOME/.local/bin"
+      else
+        echo "$HOME/bin"
+      fi
+  LOCAL_BIN: '{{.LOCAL_BIN_DIR}}/{{.BINARY_NAME}}'
+
+tasks:
+  default:
+    silent: true
+    cmds:
+      - go tool task --list
+
+  tidy:
+    desc: Clean up unused dependencies and update go.mod
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  test:
+    desc: Run tests with race detection and coverage
+    cmds:
+      - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  build:
+    desc: Build the binary from cmd directory
+    cmds:
+      - go build -v -o {{.BINARY_NAME}} ./cmd/git-folder
+
+  ci:
+    desc: Run all CI checks locally (Tidy -> Test -> Lint -> Build)
+    deps: [tidy, test, lint, build]
+    cmds:
+      - echo "✓ All CI checks passed"
+
+  install:
+    desc: Install to $GOPATH/bin
+    cmds:
+      - go install ./cmd/git-folder
+
+  use-dev:
+    desc: Switch to local dev version
+    cmds:
+      - |
+        if brew list --formula {{.BINARY_NAME}} &>/dev/null; then
+          brew unlink {{.BINARY_NAME}}
+        fi
+      - mkdir -p {{.LOCAL_BIN_DIR}}
+      - go build -o {{.LOCAL_BIN}} ./cmd/git-folder
+      - echo "✓ Using local version at {{.LOCAL_BIN}}"
+      - "{{.LOCAL_BIN}} version"
+
+  use-brew:
+    desc: Switch back to Homebrew version
+    cmds:
+      - rm -f "{{.LOCAL_BIN}}"
+      - |
+        if ! brew list --formula {{.BINARY_NAME}} &>/dev/null; then
+          echo "Error: {{.BINARY_NAME}} not installed via brew"
+          exit 1
+        fi
+      - brew link {{.BINARY_NAME}}
+      - echo "✓ Using brew version"
+      - "{{.BINARY_NAME}} version"
+
+  setup-example:
+    desc: "Create async/ example repo"
+    summary: |
+      Create async/ example repo.
+      Usage: task setup-example [-- <DirToCreateIn>]
+      Default: creates a new subdir in $TMPDIR
+    cmds:
+      - go run ./cmd/setup-example {{.CLI_ARGS}}
+
+  clean:
+    desc: Remove built artifacts and test cache
+    cmds:
+      - rm -f {{.BINARY_NAME}} coverage.txt
+      - go clean -testcache

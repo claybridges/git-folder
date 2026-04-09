@@ -112,4 +112,3 @@ var GitRunner = func(args ...string) (string, error) {
 func git(args ...string) (string, error) {
 	return GitRunner(args...)
 }
-
