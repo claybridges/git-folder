@@ -122,8 +122,15 @@ brew bundle
 Run all CI checks (tests, lint, build):
 
 ```bash
-bin/ciChecks.sh
+make ci
 ```
+
+Other useful targets:
+- `make test` - Run tests with coverage
+- `make lint` - Run golangci-lint
+- `make build` - Build binary
+- `make clean` - Remove built artifacts
+- `make help` - Show all available targets
 
 ### Toggle between brew and dev versions
 
