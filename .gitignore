@@ -4,5 +4,8 @@
 # Test coverage
 coverage.txt
 
+# Brew
+Brewfile.lock.json
+
 # OS
 .DS_Store
