@@ -2,13 +2,45 @@ package main
 
 import (
 	"bufio"
+	_ "embed"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/claybridges/git-folder/internal/folder"
 )
+
+//go:embed USAGE.txt
+var usageText string
+
+var version = "dev"
+var forceFlag bool
+
+func parseGlobalFlags(args []string) []string {
+	var filtered []string
+	for _, arg := range args {
+		if arg == "--force" || arg == "-f" {
+			forceFlag = true
+		} else {
+			filtered = append(filtered, arg)
+		}
+	}
+	return filtered
+}
+
+func confirm(prompt string) bool {
+	if forceFlag {
+		return true
+	}
+	fmt.Print(prompt)
+	reader := bufio.NewReader(os.Stdin)
+	answer, _ := reader.ReadString('\n')
+	answer = strings.TrimSpace(strings.ToLower(answer))
+	return answer == "y"
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -16,24 +48,35 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Parse global flags
+	args := parseGlobalFlags(os.Args[1:])
+	if len(args) < 1 {
+		usage()
+		os.Exit(1)
+	}
+
 	var err error
-	switch os.Args[1] {
-	case "list", "ls":
-		err = cmdList(os.Args[2:])
-	case "increment", "inc":
-		err = cmdIncrement(os.Args[2:])
-	case "last-number", "ln":
-		err = cmdLastNumber(os.Args[2:])
-	case "delete", "rm":
-		err = cmdDelete(os.Args[2:])
-	case "rename", "mv":
-		err = cmdRename(os.Args[2:])
+	switch args[0] {
+	case "list":
+		err = cmdList(args[1:])
+	case "increment":
+		err = cmdIncrement(args[1:])
+	case "last-number":
+		err = cmdLastNumber(args[1:])
+	case "delete":
+		err = cmdDelete(args[1:])
+	case "delete-upto":
+		err = cmdDeleteUpto(args[1:])
+	case "rename":
+		err = cmdRename(args[1:])
 	case "completion":
 		cmdCompletion()
+	case "version", "--version", "-v":
+		fmt.Println(version)
 	case "help", "--help", "-h":
 		usage()
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n", args[0])
 		usage()
 		os.Exit(1)
 	}
@@ -45,28 +88,38 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `usage: git folder <command> [args]
+	fmt.Fprint(os.Stderr, usageText)
+}
 
-commands:
-  list        (ls) <folder>          list branches in folder
-  last-number (ln) <folder>         print highest numbered branch
-  increment   (inc) [folder]        create next numbered branch
-  delete      (rm) <folder>         delete all branches in folder
-  rename      (mv) <old> <new>      rename folder prefix
-`)
+func resolveFolder(args []string) (string, error) {
+	if len(args) == 1 {
+		return args[0], nil
+	}
+	if len(args) == 0 {
+		cur, err := folder.CurrentFolder()
+		if err != nil {
+			return "", err
+		}
+		if cur == "" {
+			return "", fmt.Errorf("not on a folder branch; pass folder name explicitly")
+		}
+		return cur, nil
+	}
+	return "", fmt.Errorf("too many arguments")
 }
 
 func cmdList(args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: git folder list <folder>")
+	name, err := resolveFolder(args)
+	if err != nil {
+		return err
 	}
 
-	branches, err := folder.Enumerate(args[0])
+	branches, err := folder.Enumerate(name)
 	if err != nil {
 		return err
 	}
 	if len(branches) == 0 {
-		return fmt.Errorf("no branches in folder %s/", args[0])
+		return fmt.Errorf("no branches in folder %s/", name)
 	}
 
 	for _, b := range branches {
@@ -85,7 +138,11 @@ func cmdLastNumber(args []string) error {
 		return err
 	}
 
-	fmt.Println(n)
+	if n == float64(int(n)) {
+		fmt.Println(int(n))
+	} else {
+		fmt.Println(n)
+	}
 	return nil
 }
 
@@ -103,6 +160,16 @@ func cmdIncrement(args []string) error {
 			return fmt.Errorf("not on a folder branch; pass folder name explicitly")
 		}
 		name = cur
+
+		// When inferring, verify we're on the highest number
+		curNum := folder.CurrentNumber()
+		last, err := folder.LastNumber(name)
+		if err != nil {
+			return err
+		}
+		if float64(curNum) != last {
+			return fmt.Errorf("current branch is %s/%d but max is %s/%g", name, curNum, name, last)
+		}
 	} else {
 		return fmt.Errorf("usage: git folder increment [folder]")
 	}
@@ -112,39 +179,95 @@ func cmdIncrement(args []string) error {
 		return err
 	}
 
-	next := fmt.Sprintf("%s/%d", name, last+1)
-	fmt.Printf("creating %s\n", next)
-	return gitExec("checkout", "-b", next)
+	ceiled := int(math.Ceil(last))
+	next := ceiled
+	if float64(ceiled) == last {
+		next = ceiled + 1
+	}
+	nextBranch := fmt.Sprintf("%s/%d", name, next)
+	fmt.Printf("creating %s\n", nextBranch)
+	return gitExec("checkout", "-b", nextBranch)
 }
 
 func cmdDelete(args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: git folder delete <folder>")
+	name, err := resolveFolder(args)
+	if err != nil {
+		return err
 	}
 
-	branches, err := folder.Enumerate(args[0])
+	branches, err := folder.Enumerate(name)
 	if err != nil {
 		return err
 	}
 	if len(branches) == 0 {
-		return fmt.Errorf("no branches in folder %s/", args[0])
+		return fmt.Errorf("no branches in folder %s/", name)
 	}
 
-	fmt.Printf("delete all branches in folder %s/:\n", args[0])
+	fmt.Printf("delete all branches in folder %s/:\n", name)
 	for _, b := range branches {
 		fmt.Printf("  %s\n", b)
 	}
 
-	fmt.Print("confirm? y/N ")
-	reader := bufio.NewReader(os.Stdin)
-	answer, _ := reader.ReadString('\n')
-	answer = strings.TrimSpace(strings.ToLower(answer))
-	if answer != "y" {
+	if !confirm("confirm? [yN] ") {
 		fmt.Println("aborted")
 		return nil
 	}
 
 	for _, b := range branches {
+		if err := gitExec("branch", "-D", b); err != nil {
+			return fmt.Errorf("failed to delete %s: %w", b, err)
+		}
+	}
+	return nil
+}
+
+func cmdDeleteUpto(args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("usage: git folder delete-upto <folder> <n>")
+	}
+
+	folderName := args[0]
+	n, err := strconv.ParseFloat(args[1], 64)
+	if err != nil {
+		return fmt.Errorf("invalid number: %s", args[1])
+	}
+
+	branches, err := folder.Enumerate(folderName)
+	if err != nil {
+		return err
+	}
+
+	var toKeep []string
+	var toDelete []string
+	for _, b := range branches {
+		num, ok := folder.NumberFloat(b)
+		if ok && num < n {
+			toDelete = append(toDelete, b)
+		} else {
+			toKeep = append(toKeep, b)
+		}
+	}
+
+	if len(toDelete) == 0 {
+		return fmt.Errorf("no numbered branches below %v in folder %s/", n, folderName)
+	}
+
+	fmt.Printf("keep:\n")
+	for _, b := range toKeep {
+		fmt.Printf("  %s\n", b)
+	}
+	fmt.Println()
+	fmt.Printf("delete:\n")
+	for _, b := range toDelete {
+		fmt.Printf("  %s\n", b)
+	}
+
+	if !confirm("confirm? [yN] ") {
+		fmt.Println("aborted")
+		return nil
+	}
+
+	for _, b := range toDelete {
 		if err := gitExec("branch", "-D", b); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", b, err)
 		}
@@ -186,11 +309,7 @@ func cmdRename(args []string) error {
 		fmt.Printf("  %s -> %s\n", p.from, p.to)
 	}
 
-	fmt.Print("confirm? y/N ")
-	reader := bufio.NewReader(os.Stdin)
-	answer, _ := reader.ReadString('\n')
-	answer = strings.TrimSpace(strings.ToLower(answer))
-	if answer != "y" {
+	if !confirm("confirm? [yN] ") {
 		fmt.Println("aborted")
 		return nil
 	}
@@ -213,16 +332,13 @@ _git-folder() {
     local -a commands
     commands=(
         'list:list branches in a folder'
-        'ls:list branches in a folder'
         'last-number:print highest numbered branch'
-        'ln:print highest numbered branch'
         'increment:create next numbered branch'
-        'inc:create next numbered branch'
         'delete:delete all branches in a folder'
-        'rm:delete all branches in a folder'
+        'delete-upto:delete numbered branches below n'
         'rename:rename a folder prefix'
-        'mv:rename a folder prefix'
         'completion:output zsh completion script'
+        'version:show version'
         'help:show usage'
     )
 
@@ -236,7 +352,7 @@ _git-folder() {
             ;;
         args)
             case $words[1] in
-                list|ls|last-number|ln|delete|rm|increment|inc|rename|mv)
+                list|last-number|delete|delete-upto|increment|rename)
                     _git-folder-folders
                     ;;
             esac
@@ -246,7 +362,11 @@ _git-folder() {
 
 _git-folder-folders() {
     local -a folders
-    folders=(${(u)${(f)"$(git branch --format='%(refname:short)' 2>/dev/null | grep '/' | sed 's|/.*||')"}})
+    folders=(${(u)${(f)"$(
+        git branch --format='%(refname:short)' 2>/dev/null \
+            | grep -E '^[^/]+/[^/]+$' \
+            | sed 's|/.*||'
+    )"}})
     [[ ${#folders} -gt 0 ]] && compadd -- "${folders[@]}"
 }
 

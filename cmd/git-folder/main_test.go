@@ -158,12 +158,36 @@ func TestCmdIncrementExplicit(t *testing.T) {
 	}
 }
 
+func TestCmdIncrementExplicitFloat(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "topic/1")
+	run(t, dir, "git", "branch", "topic/2.5")
+
+	err := cmdIncrement([]string{"topic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	branches := branchList(t, dir, "topic/*")
+	found := false
+	for _, b := range branches {
+		if b == "topic/3" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("topic/3 not created, got branches: %v", branches)
+	}
+}
+
 func TestCmdIncrementInferred(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
 
-	run(t, dir, "git", "checkout", "-b", "work/1")
-	run(t, dir, "git", "branch", "work/2")
+	run(t, dir, "git", "checkout", "-b", "work/2")
+	run(t, dir, "git", "branch", "work/1")
 
 	err := cmdIncrement(nil)
 	if err != nil {
@@ -200,6 +224,20 @@ func TestCmdIncrementNonexistent(t *testing.T) {
 	err := cmdIncrement([]string{"nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for nonexistent folder")
+	}
+}
+
+func TestCmdIncrementNotMax(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "work/1")
+	run(t, dir, "git", "branch", "work/3")
+
+	// On work/1 but max is work/3, should error
+	err := cmdIncrement(nil)
+	if err == nil {
+		t.Fatal("expected error when not on max branch")
 	}
 }
 
@@ -264,6 +302,119 @@ func TestCmdDeleteEmpty(t *testing.T) {
 func TestCmdDeleteBadArgs(t *testing.T) {
 	if err := cmdDelete(nil); err == nil {
 		t.Fatal("expected error for no args")
+	}
+}
+
+// --- cmdDeleteUpto ---
+
+func TestCmdDeleteUptoConfirm(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "x/1")
+	run(t, dir, "git", "branch", "x/2")
+	run(t, dir, "git", "branch", "x/2.5")
+	run(t, dir, "git", "branch", "x/3")
+	run(t, dir, "git", "branch", "x/4")
+	run(t, dir, "git", "branch", "x/bigbooty")
+
+	withStdin(t, "y\n")
+
+	err := cmdDeleteUpto([]string{"x", "3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kept := branchList(t, dir, "x/*")
+	// Should keep: x/3, x/4, x/bigbooty
+	if len(kept) != 3 {
+		t.Errorf("expected 3 kept, got: %v", kept)
+	}
+	// Should have deleted: x/1, x/2, x/2.5
+	for _, b := range kept {
+		if b == "x/1" || b == "x/2" || b == "x/2.5" {
+			t.Errorf("branch %s should have been deleted", b)
+		}
+	}
+}
+
+func TestCmdDeleteUptoFloatThreshold(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "x/1")
+	run(t, dir, "git", "branch", "x/2")
+	run(t, dir, "git", "branch", "x/2.5")
+	run(t, dir, "git", "branch", "x/2.6")
+	run(t, dir, "git", "branch", "x/3")
+
+	withStdin(t, "y\n")
+
+	err := cmdDeleteUpto([]string{"x", "2.5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kept := branchList(t, dir, "x/*")
+	// Should keep: x/2.5, x/2.6, x/3
+	if len(kept) != 3 {
+		t.Errorf("expected 3 kept, got: %v", kept)
+	}
+	for _, b := range kept {
+		if b == "x/1" || b == "x/2" {
+			t.Errorf("branch %s should have been deleted", b)
+		}
+	}
+}
+
+func TestCmdDeleteUptoAbort(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "y/1")
+	run(t, dir, "git", "branch", "y/2")
+
+	withStdin(t, "n\n")
+
+	err := cmdDeleteUpto([]string{"y", "2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kept := branchList(t, dir, "y/*")
+	if len(kept) != 2 {
+		t.Errorf("expected 2 kept, got: %v", kept)
+	}
+}
+
+func TestCmdDeleteUptoNoneBelow(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "z/5")
+
+	err := cmdDeleteUpto([]string{"z", "1"})
+	if err == nil {
+		t.Fatal("expected error when no branches below n")
+	}
+}
+
+func TestCmdDeleteUptoBadArgs(t *testing.T) {
+	if err := cmdDeleteUpto(nil); err == nil {
+		t.Fatal("expected error for no args")
+	}
+	if err := cmdDeleteUpto([]string{"a"}); err == nil {
+		t.Fatal("expected error for one arg")
+	}
+	if err := cmdDeleteUpto([]string{"a", "notanumber"}); err == nil {
+		t.Fatal("expected error for non-numeric arg")
+	}
+}
+
+func TestCmdDeleteUptoNotARepo(t *testing.T) {
+	inNonRepo(t)
+	if err := cmdDeleteUpto([]string{"foo", "3"}); err == nil {
+		t.Fatal("expected error outside git repo")
 	}
 }
 
@@ -442,4 +593,123 @@ func TestCmdDeleteFailsOnCheckedOut(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error deleting checked-out branch")
 	}
+}
+
+// --- Force flag tests ---
+
+func TestForceFlag(t *testing.T) {
+	t.Run("delete with --force", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "force/1")
+		run(t, dir, "git", "checkout", "-b", "force/2")
+		run(t, dir, "git", "checkout", "main")
+
+		// Reset flag before test
+		forceFlag = false
+
+		// Parse --force flag
+		args := parseGlobalFlags([]string{"--force", "delete", "force"})
+		if !forceFlag {
+			t.Fatal("--force flag not parsed")
+		}
+		if len(args) != 2 || args[0] != "delete" || args[1] != "force" {
+			t.Fatalf("args not filtered correctly: %v", args)
+		}
+
+		// Should not prompt
+		err := cmdDelete(args[1:])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		remaining := branchList(t, dir, "force/*")
+		if len(remaining) > 0 {
+			t.Fatalf("expected all branches deleted, got: %v", remaining)
+		}
+
+		// Reset for other tests
+		forceFlag = false
+	})
+
+	t.Run("delete with -f", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "short/1")
+		run(t, dir, "git", "checkout", "main")
+
+		forceFlag = false
+		args := parseGlobalFlags([]string{"-f", "delete", "short"})
+		if !forceFlag {
+			t.Fatal("-f flag not parsed")
+		}
+
+		err := cmdDelete(args[1:])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		remaining := branchList(t, dir, "short/*")
+		if len(remaining) > 0 {
+			t.Fatalf("expected all branches deleted, got: %v", remaining)
+		}
+
+		forceFlag = false
+	})
+
+	t.Run("delete-upto with --force", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "upto/1")
+		run(t, dir, "git", "checkout", "-b", "upto/2")
+		run(t, dir, "git", "checkout", "-b", "upto/3")
+		run(t, dir, "git", "checkout", "main")
+
+		forceFlag = false
+		args := parseGlobalFlags([]string{"--force", "delete-upto", "upto", "3"})
+		if !forceFlag {
+			t.Fatal("--force flag not parsed")
+		}
+
+		err := cmdDeleteUpto(args[1:])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		remaining := branchList(t, dir, "upto/*")
+		if len(remaining) != 1 || remaining[0] != "upto/3" {
+			t.Fatalf("expected only upto/3, got: %v", remaining)
+		}
+
+		forceFlag = false
+	})
+
+	t.Run("rename with --force", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "checkout", "-b", "old/1")
+		run(t, dir, "git", "checkout", "main")
+
+		forceFlag = false
+		args := parseGlobalFlags([]string{"--force", "rename", "old", "new"})
+		if !forceFlag {
+			t.Fatal("--force flag not parsed")
+		}
+
+		err := cmdRename(args[1:])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		old := branchList(t, dir, "old/*")
+		new := branchList(t, dir, "new/*")
+		if len(old) > 0 {
+			t.Fatalf("expected old/* deleted, got: %v", old)
+		}
+		if len(new) != 1 || new[0] != "new/1" {
+			t.Fatalf("expected new/1, got: %v", new)
+		}
+
+		forceFlag = false
+	})
 }

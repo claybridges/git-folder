@@ -1,0 +1,19 @@
+usage: git folder <command> [args]
+
+commands:
+  delete          <folder>              delete all branches in folder
+  delete-upto     <folder> <n>          delete numbered branches below n
+  increment       [folder]              create next numbered branch
+  last-number     [folder]              print highest numbered branch
+  list            [folder]              list branches in folder
+  rename          <existing> <new>      rename folder prefix
+
+Note:
+* When [folder] is omitted, if
+	- a branch is checked-out
+	- it is in folder format
+  that branch's folder is used as the default
+* delete, delete-upto, and rename have `[yN]` confirmation
+* increment
+	- errors if any other than the highest branch is used for the default
+	- if folder is specified (rather than using default), creates a new branch from the highest numbered branch
