@@ -122,7 +122,7 @@ brew bundle
 Run all CI checks (tests, lint, build):
 
 ```bash
-bin/ci
+bin/ciChecks.sh
 ```
 
 ### Toggle between brew and dev versions
