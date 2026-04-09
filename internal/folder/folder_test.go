@@ -65,6 +65,32 @@ func TestNumber(t *testing.T) {
 	}
 }
 
+func TestNumberFloat(t *testing.T) {
+	tests := []struct {
+		input string
+		want  float64
+		ok    bool
+	}{
+		{"foo/1", 1, true},
+		{"foo/0", 0, true},
+		{"foo/42", 42, true},
+		{"foo/2.5", 2.5, true},
+		{"foo/0.1", 0.1, true},
+		{"foo/bar", 0, false},
+		{"foo/-1", 0, false},
+		{"foo/abc", 0, false},
+		{"foo/2.50", 0, false},
+		{"foo/3.0", 0, false},
+		{"foo/10.10", 0, false},
+	}
+	for _, tt := range tests {
+		got, ok := NumberFloat(tt.input)
+		if ok != tt.ok || got != tt.want {
+			t.Errorf("NumberFloat(%q) = (%v, %v), want (%v, %v)", tt.input, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
 // --- Git-dependent tests ---
 
 func initTestRepo(t *testing.T) string {
@@ -147,7 +173,40 @@ func TestLastNumber(t *testing.T) {
 		t.Fatal(err)
 	}
 	if last != 5 {
-		t.Errorf("got %d, want 5", last)
+		t.Errorf("got %v, want 5", last)
+	}
+}
+
+func TestLastNumberFloat(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "foo/1")
+	run(t, dir, "git", "branch", "foo/2.5")
+
+	last, err := LastNumber("foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last != 2.5 {
+		t.Errorf("got %v, want 2.5", last)
+	}
+}
+
+func TestLastNumberIntAndFloat(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "foo/1")
+	run(t, dir, "git", "branch", "foo/2.5")
+	run(t, dir, "git", "branch", "foo/3")
+
+	last, err := LastNumber("foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last != 3 {
+		t.Errorf("got %v, want 3", last)
 	}
 }
 
@@ -213,6 +272,40 @@ func TestCurrentFolderDetached(t *testing.T) {
 	}
 	if cur != "" {
 		t.Errorf("got %q, want empty on detached HEAD", cur)
+	}
+}
+
+func TestCurrentNumber(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "topic/3")
+
+	n := CurrentNumber()
+	if n != 3 {
+		t.Errorf("got %d, want 3", n)
+	}
+}
+
+func TestCurrentNumberNonFolder(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	n := CurrentNumber()
+	if n != -1 {
+		t.Errorf("got %d, want -1", n)
+	}
+}
+
+func TestCurrentNumberDetached(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "--detach")
+
+	n := CurrentNumber()
+	if n != -1 {
+		t.Errorf("got %d, want -1", n)
 	}
 }
 
