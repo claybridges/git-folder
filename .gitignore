@@ -1,5 +1,8 @@
 # Binary
 /git-folder
 
+# Test coverage
+coverage.txt
+
 # OS
 .DS_Store
