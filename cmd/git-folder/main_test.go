@@ -34,7 +34,11 @@ func inDir(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	t.Cleanup(func() {
+		if err := os.Chdir(orig); err != nil {
+			t.Errorf("failed to restore directory: %v", err)
+		}
+	})
 }
 
 func branchList(t *testing.T, dir, pattern string) []string {
@@ -52,8 +56,12 @@ func withStdin(t *testing.T, input string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.WriteString(input)
-	w.Close()
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	orig := os.Stdin
 	os.Stdin = r
 	t.Cleanup(func() { os.Stdin = orig })
@@ -754,7 +762,6 @@ func TestDeleteCheckedOutBranch(t *testing.T) {
 		if len(branches) != 0 {
 			t.Fatalf("expected branch to be deleted, got: %v", branches)
 		}
-
 
 		// Should be in detached HEAD state
 		cmd := exec.Command("git", "symbolic-ref", "--quiet", "--short", "HEAD")
