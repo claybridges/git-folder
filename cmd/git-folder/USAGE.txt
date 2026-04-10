@@ -2,7 +2,7 @@ usage: git folder list <folder>
    or: git folder increment [<folder>]
    or: git folder delete [--force] <folder>
    or: git folder delete-upto [--force] <folder> <n>
-   or: git folder squash [<folder>]
+   or: git folder squash
    or: git folder last-number <folder>
    or: git folder rename [--force] <old> <new>
 

@@ -106,15 +106,17 @@ func CurrentNumber() int {
 func DetectTrunk() (string, error) {
 	out, err := git("symbolic-ref", "refs/remotes/origin/HEAD")
 	if err == nil && out != "" {
-		// "refs/remotes/origin/main" → "main"
-		parts := strings.Split(out, "/")
-		name := parts[len(parts)-1]
-		if _, err := git("rev-parse", "--verify", name); err == nil {
-			return name, nil
-		}
-		remoteName := "origin/" + name
-		if _, err := git("rev-parse", "--verify", remoteName); err == nil {
-			return remoteName, nil
+		// "refs/remotes/origin/main" → "main" (handles slashes like "release/2026")
+		const prefix = "refs/remotes/origin/"
+		name := strings.TrimPrefix(out, prefix)
+		if name != "" && name != out {
+			if _, err := git("rev-parse", "--verify", name); err == nil {
+				return name, nil
+			}
+			remoteName := "origin/" + name
+			if _, err := git("rev-parse", "--verify", remoteName); err == nil {
+				return remoteName, nil
+			}
 		}
 	}
 	// Fall back to local branches
