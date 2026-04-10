@@ -11,6 +11,8 @@ import (
 
 // Setup creates the async/ folder structure in dir, which must already be a
 // git repo with at least one commit on main.
+//
+//gocyclo:ignore
 func Setup(dir string) error {
 	// async/1 branches from main at commit 3 (after a, b, c)
 	sha3, err := gout(dir, "rev-parse", "HEAD")
