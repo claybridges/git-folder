@@ -682,6 +682,7 @@ func TestCmdDeleteFailsOnCheckedOut(t *testing.T) {
 
 // --- Force flag tests ---
 
+//gocyclo:ignore
 func TestForceFlag(t *testing.T) {
 	t.Run("delete with --force", func(t *testing.T) {
 		dir := initTestRepo(t)
