@@ -12,6 +12,7 @@ git-folder - manage groups of git branches as folders
 git folder list <folder>
 git folder last-number <folder>
 git folder increment [<folder>]
+git folder squash
 git folder delete [--force] <folder>
 git folder delete-upto [--force] <folder> <n>
 git folder rename [--force] <old> <new>
@@ -35,6 +36,13 @@ git folder rename [--force] <old> <new>
     defaults to the folder of the current branch. Errors if the current branch
     is not the highest numbered branch in the folder. If *folder* is specified,
     creates from the highest numbered branch regardless of current branch.
+
+**squash**
+:   When called with the highest numbered branch in a folder checked out,
+    creates the next numbered branch and squashes all commits since the
+    divergence from the trunk branch (main/master) into one commit. Detects
+    the trunk branch automatically. Errors if the current branch is not a
+    folder branch or not the highest numbered branch.
 
 **delete** *\<folder\>*
 :   Delete all branches in the folder. Prompts for confirmation unless
