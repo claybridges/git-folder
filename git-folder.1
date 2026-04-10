@@ -9,6 +9,7 @@ git\-folder \- manage groups of git branches as folders
 git folder list <folder>
 git folder last\-number <folder>
 git folder increment [<folder>]
+git folder squash [<folder>]
 git folder delete [\-\-force] <folder>
 git folder delete\-upto [\-\-force] <folder> <n>
 git folder rename [\-\-force] <old> <new>
@@ -32,6 +33,15 @@ Errors if the current branch is not the highest numbered branch in the
 folder.
 If \f[I]folder\f[R] is specified, creates from the highest numbered
 branch regardless of current branch.
+.TP
+\f[B]squash\f[R] \f[I][folder]\f[R]
+Increment and squash.
+Creates the next numbered branch from the current branch, then squashes
+all commits since the divergence from the trunk branch (main/master)
+into one commit.
+Detects the trunk branch automatically.
+If \f[I]folder\f[R] is omitted, defaults to the folder of the current
+branch.
 .TP
 \f[B]delete\f[R] \f[I]<folder>\f[R]
 Delete all branches in the folder.

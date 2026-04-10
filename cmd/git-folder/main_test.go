@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -576,6 +577,83 @@ func TestCmdRenameBadArgs(t *testing.T) {
 	}
 	if err := cmdRename([]string{"a"}); err == nil {
 		t.Fatal("expected error for one arg")
+	}
+}
+
+// --- cmdSquash ---
+
+func TestCmdSquash(t *testing.T) {
+	dir := initTestRepo(t) // main with a.go, b.go, c.go
+
+	// Create async/1 with 7 commits
+	run(t, dir, "git", "checkout", "-b", "async/1")
+	for i := 1; i <= 7; i++ {
+		msg := fmt.Sprintf("async1-work-%d", i)
+		if err := os.WriteFile(filepath.Join(dir, msg+".txt"), []byte(msg), 0644); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", msg+".txt")
+		run(t, dir, "git", "commit", "-m", msg)
+	}
+
+	// Run squash via binary
+	cmd := exec.Command(binaryPath, "squash")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("squash failed: %v\n%s", err, out)
+	}
+
+	// Should be on async/2
+	branch := run(t, dir, "git", "branch", "--show-current")
+	if branch != "async/2" {
+		t.Fatalf("expected async/2, got %s", branch)
+	}
+
+	// Should have exactly 1 commit between merge-base and HEAD
+	mergeBase := run(t, dir, "git", "merge-base", "HEAD", "main")
+	countStr := run(t, dir, "git", "rev-list", "--count", mergeBase+"..HEAD")
+	if countStr != "1" {
+		t.Fatalf("expected 1 commit after squash, got %s", countStr)
+	}
+
+	// Commit message should contain the squashed messages
+	msg := run(t, dir, "git", "log", "-1", "--format=%B")
+	for i := 1; i <= 7; i++ {
+		want := fmt.Sprintf("async1-work-%d", i)
+		if !strings.Contains(msg, want) {
+			t.Errorf("commit message missing %q", want)
+		}
+	}
+}
+
+func TestCmdSquashNothingToSquash(t *testing.T) {
+	dir := initTestRepo(t)
+
+	// Create async/1 with only 1 commit
+	run(t, dir, "git", "checkout", "-b", "async/1")
+	if err := os.WriteFile(filepath.Join(dir, "only.txt"), []byte("only"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "only.txt")
+	run(t, dir, "git", "commit", "-m", "only commit")
+
+	cmd := exec.Command(binaryPath, "squash")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected error for nothing to squash")
+	}
+	if !strings.Contains(string(out), "nothing to squash") {
+		t.Fatalf("expected 'nothing to squash' error, got: %s", out)
+	}
+
+	// async/2 should NOT exist (didn't increment)
+	branches := branchList(t, dir, "async/*")
+	for _, b := range branches {
+		if b == "async/2" {
+			t.Fatal("async/2 should not exist when nothing to squash")
+		}
 	}
 }
 

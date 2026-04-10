@@ -67,6 +67,8 @@ func main() {
 		err = cmdDelete(args[1:])
 	case "delete-upto":
 		err = cmdDeleteUpto(args[1:])
+	case "squash":
+		err = cmdSquash(args[1:])
 	case "rename":
 		err = cmdRename(args[1:])
 	case "completion":
@@ -322,6 +324,86 @@ func cmdRename(args []string) error {
 	return nil
 }
 
+func cmdSquash(args []string) error {
+	name, err := resolveFolder(args)
+	if err != nil {
+		return err
+	}
+
+	// Detect trunk
+	trunk, err := folder.DetectTrunk()
+	if err != nil {
+		return err
+	}
+
+	// Find merge base with trunk
+	mergeBase, err := gitOutput("merge-base", "HEAD", trunk)
+	if err != nil {
+		return fmt.Errorf("no common ancestor with %s", trunk)
+	}
+
+	// Find first commit after split
+	revList, err := gitOutput("rev-list", "--ancestry-path", mergeBase+"..HEAD")
+	if err != nil || revList == "" {
+		return fmt.Errorf("no commits after divergence from %s", trunk)
+	}
+	lines := strings.Split(revList, "\n")
+	firstCommit := lines[len(lines)-1]
+
+	// Count commits to squash (everything after firstCommit)
+	countStr, err := gitOutput("rev-list", "--count", firstCommit+"..HEAD")
+	if err != nil {
+		return err
+	}
+	count, _ := strconv.Atoi(countStr)
+	if count == 0 {
+		return fmt.Errorf("only one commit on branch, nothing to squash")
+	}
+
+	// Create next branch from current HEAD
+	last, err := folder.LastNumber(name)
+	if err != nil {
+		return err
+	}
+	ceiled := int(math.Ceil(last))
+	next := ceiled
+	if float64(ceiled) == last {
+		next = ceiled + 1
+	}
+	nextBranch := fmt.Sprintf("%s/%d", name, next)
+	fmt.Printf("creating %s\n", nextBranch)
+	if err = gitExec("checkout", "-b", nextBranch); err != nil {
+		return err
+	}
+
+	// Collect messages from commits being squashed
+	msgs, err := gitOutput("log", "--format=%B", firstCommit+"..HEAD")
+	if err != nil {
+		return err
+	}
+	// Filter blank lines
+	var filtered []string
+	for _, line := range strings.Split(msgs, "\n") {
+		if strings.TrimSpace(line) != "" {
+			filtered = append(filtered, line)
+		}
+	}
+
+	// Get first commit's message
+	firstMsg, err := gitOutput("log", "-1", "--format=%B", firstCommit)
+	if err != nil {
+		return err
+	}
+
+	// Squash: reset to first commit, amend with all messages
+	if err := gitExec("reset", "--soft", firstCommit); err != nil {
+		return err
+	}
+
+	combinedMsg := strings.TrimSpace(firstMsg) + "\n\n" + strings.Join(filtered, "\n")
+	return gitExec("commit", "--amend", "-m", combinedMsg)
+}
+
 func cmdCompletion() {
 	fmt.Print(`#compdef git-folder
 
@@ -336,6 +418,7 @@ _git-folder() {
         'increment:create next numbered branch'
         'delete:delete all branches in a folder'
         'delete-upto:delete numbered branches below n'
+        'squash:increment and squash commits'
         'rename:rename a folder prefix'
         'version:show version'
         'help:show usage'
@@ -351,7 +434,7 @@ _git-folder() {
             ;;
         args)
             case $words[1] in
-                list|last-number|delete|delete-upto|increment|rename)
+                list|last-number|delete|delete-upto|increment|squash|rename)
                     _git-folder-folders
                     ;;
             esac
@@ -372,6 +455,12 @@ _git-folder-folders() {
 # Also hook into 'git folder' as a git subcommand
 _git-folder "$@"
 `)
+}
+
+func gitOutput(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	out, err := cmd.Output()
+	return strings.TrimSpace(string(out)), err
 }
 
 func gitExec(args ...string) error {

@@ -101,6 +101,25 @@ func CurrentNumber() int {
 	return Number(out)
 }
 
+// DetectTrunk returns the name of the default branch (e.g. "main" or "master").
+// Checks remote HEAD first, then falls back to local branch existence.
+func DetectTrunk() (string, error) {
+	out, err := git("symbolic-ref", "refs/remotes/origin/HEAD")
+	if err == nil && out != "" {
+		// "refs/remotes/origin/main" → "main"
+		parts := strings.Split(out, "/")
+		return parts[len(parts)-1], nil
+	}
+	// Fall back to local branches
+	if _, err := git("rev-parse", "--verify", "main"); err == nil {
+		return "main", nil
+	}
+	if _, err := git("rev-parse", "--verify", "master"); err == nil {
+		return "master", nil
+	}
+	return "", fmt.Errorf("cannot determine default branch")
+}
+
 // GitRunner executes a git command and returns trimmed output.
 // Override in tests to inject errors.
 var GitRunner = func(args ...string) (string, error) {
