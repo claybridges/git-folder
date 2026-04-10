@@ -119,7 +119,11 @@ func inDir(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	t.Cleanup(func() {
+		if err := os.Chdir(orig); err != nil {
+			t.Errorf("failed to restore directory: %v", err)
+		}
+	})
 }
 
 func TestEnumerate(t *testing.T) {

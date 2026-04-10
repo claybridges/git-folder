@@ -3,17 +3,38 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/claybridges/git-folder/internal/example"
 )
+
+var binaryPath string
+
+func TestMain(m *testing.M) {
+	tmp, err := os.MkdirTemp("", "git-folder-test-*")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tmp) //nolint:errcheck // best-effort cleanup
+
+	binaryPath = filepath.Join(tmp, "git-folder")
+	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		panic("build failed: " + string(out))
+	}
+
+	os.Exit(m.Run())
+}
 
 func initTestRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	run(t, dir, "git", "init")
-	run(t, dir, "git", "config", "user.email", "test@test.com")
-	run(t, dir, "git", "config", "user.name", "Test")
-	run(t, dir, "git", "commit", "--allow-empty", "-m", "init")
+	if err := example.InitRepo(dir); err != nil {
+		t.Fatal(err)
+	}
 	return dir
 }
 
@@ -34,7 +55,29 @@ func inDir(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	t.Cleanup(func() {
+		if err := os.Chdir(orig); err != nil {
+			t.Errorf("failed to restore directory: %v", err)
+		}
+	})
+}
+
+func withFolder(folder string, nums ...string) []string {
+	branches := make([]string, len(nums))
+	for i, n := range nums {
+		branches[i] = folder + "/" + n
+	}
+	return branches
+}
+
+func assertBranchesExist(t *testing.T, dir string, branches []string) {
+	t.Helper()
+	have := branchList(t, dir, "*/*")
+	for _, b := range branches {
+		if !slices.Contains(have, b) {
+			t.Fatalf("branch %s missing", b)
+		}
+	}
 }
 
 func branchList(t *testing.T, dir, pattern string) []string {
@@ -52,11 +95,20 @@ func withStdin(t *testing.T, input string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.WriteString(input)
-	w.Close()
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	orig := os.Stdin
 	os.Stdin = r
-	t.Cleanup(func() { os.Stdin = orig })
+	t.Cleanup(func() {
+		os.Stdin = orig
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close pipe: %v", err)
+		}
+	})
 }
 
 // --- cmdList ---
@@ -85,6 +137,7 @@ func TestCmdListEmpty(t *testing.T) {
 }
 
 func TestCmdListBadArgs(t *testing.T) {
+	inNonRepo(t)
 	if err := cmdList(nil); err == nil {
 		t.Fatal("expected error for no args")
 	}
@@ -300,12 +353,44 @@ func TestCmdDeleteEmpty(t *testing.T) {
 }
 
 func TestCmdDeleteBadArgs(t *testing.T) {
+	inNonRepo(t)
 	if err := cmdDelete(nil); err == nil {
 		t.Fatal("expected error for no args")
 	}
 }
 
+// initAsyncRepo creates the async/ folder from the README example with realistic history.
+func initAsyncRepo(t *testing.T) string {
+	t.Helper()
+	dir := initTestRepo(t)
+	if err := example.Setup(dir); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 // --- cmdDeleteUpto ---
+
+func TestCmdDeleteUptoReadmeExample(t *testing.T) {
+	dir := initAsyncRepo(t)
+
+	deleted := withFolder("async", "1", "2", "2.5", "3")
+	assertBranchesExist(t, dir, deleted)
+
+	cmd := exec.Command(binaryPath, "delete-upto", "async", "4")
+	cmd.Dir = dir
+	cmd.Stdin = strings.NewReader("y\n")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("delete-upto failed: %v\n%s", err, out)
+	}
+
+	kept := branchList(t, dir, "async/*")
+	for _, b := range deleted {
+		if slices.Contains(kept, b) {
+			t.Errorf("branch %s should have been deleted", b)
+		}
+	}
+}
 
 func TestCmdDeleteUptoConfirm(t *testing.T) {
 	dir := initTestRepo(t)

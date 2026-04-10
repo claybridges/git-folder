@@ -5,17 +5,15 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/claybridges/git-folder)](https://goreportcard.com/report/github.com/claybridges/git-folder)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A git subcommand for managing groups of branches as a folder. Particular focus on managing sequences of numbers, like `a/1`, `a/2`, etc.
+A git subcommand for managing groups of branches as a folder, like `async/1`, `async/2`, etc. Using a sequence of branches can help organize and preserve interim state during iterative development. Along that path, you can squash, rebase, and experiment freely, while keeping prior work accessible.
 
-## TLDR
+## Why?
 
-The tool helps preserve work during iterative development by maintaining numbered branch sequences, so you can experiment freely while keeping prior work accessible.
+When iterating on an idea, it's sometimes useful to keep prior branches around. In case of a failed experiment or botched rebase, this can spare you from lost time poring over a crowded reflog. Or sometimes, it's handy to preserve a series of commits you made during development; but you also need to squash and rebase that work to move forward. Folks handle this lots of ways: `temp`, `holdIt`, `foo4`, `TCKT-123_v11`, etc. `git folder` does that with a structured approach. 
 
-# Why?
+See the Example section below for more info on this workflow.
 
-When iterating on an idea, it's sometimes useful to keep prior branches around. In case of a failed experiment, this can spare you from lost time poring over a crowded reflog. Or sometimes, it's handy to preserve a series of commits you made during development; but you also need to squash and rebase that work to move forward. Folks handle this lots of ways: `temp1`, `holdIt4`, `TCKT-123_v11`, etc. `git folder` canonicalizes that, grouping git branches into folders. 
-
-## Install 
+## Install
 
 ### Homebrew (macOS)
 
@@ -30,43 +28,42 @@ Requires Go:
 go install github.com/claybridges/git-folder/cmd/git-folder@latest
 ```
 
-### Completion
-
-`git folder completion` provides zsh completion stubs.
-
 ## Usage
 
 ```
 usage: git folder <command> [<options>] [<args>]
 
 Commands:
-  delete          <folder>              delete all branches in folder
-  delete-upto     <folder> <n>          delete numbered branches below n
-  increment       [<folder>]            create and checkout next numbered branch
-  last-number     [<folder>]            print highest numbered branch
-  list            [<folder>]            list branches in folder
-  rename          <existing> <new>      rename folder prefix
+  delete          <folder>            delete all branches in folder
+  delete-upto     <folder> <n>        delete numbered branches below n
+  increment       [branch]|[folder]   create and checkout next numbered branch
+  list            [folder]            list branches in folder
+  rename          <existing> <new>    rename folder prefix
+
+Mostly for internal use:
+  last-number     [folder]            print highest numbered branch
 
 Options:
-  --force                               skip confirmation prompts
-  --nocheckout                          (increment only) create branch without checking out
-
-Notes:
-  When [<folder>] is omitted, defaults to folder of current branch, if applicable.
-  
-  delete, delete-upto, and rename have confirmation prompts (skipped with --force).
-  
-  increment errors if any other than the highest branch is used for the default.
-  If folder is specified (rather than using default), creates a new branch from 
-  the highest numbered branch.
+  --force | -f                        skip confirmation prompts, detach & override checked out branches
+  --nocheckout | -n                   (increment only) create branch without checking out
 ```
+Notes:
+* When `[folder]` is omitted, defaults to folder of current branch, if applicable.
+  
+* `delete`, `delete-upto`, and `rename` have confirmation prompts (skipped with `--force`).
+  
+* `increment`
+    - if default is not the highest branch, errors
+    - If folder is specified (rather than using default), creates a new branch from the highest numbered branch.
 
-# Example
+* `git folder completion` provides zsh completion stubs.
+
+## Example
 
 Let's say I'm converting something to use `async`/`await`:
 - first branch is `async/1`
-- make 7 commits
-- want to move forward, squash & rebase on `main`
+- I make 7 commits
+- Now it's time to squash & rebase on `main` so I can move forward
 
 With `async/1` checked out, I could
 ```bash
@@ -77,10 +74,9 @@ This creates new branch `async/2`. I'd squash & rebase that, with the confidence
 $ git rebase -i main
 ```
 
-> [!NOTE]
-> For good or ill, I have my git commands _heavily_ aliased, so in use `git folder increment` is `gfi` for me. 
-I could squash and rebase that on `main`, and not really worry if I screw something up. Let's say I do that over a week or two, and have gotten to a PR. I can do
-```bash
+After iterating on that for a week, I've gotten to a PR. Listing my `async` branches, I get:
+
+```
 $ git folder list async
 async/1
 async/2
@@ -90,8 +86,10 @@ async/4
 async/bigbooty
 async/temp
 ```
-Let's say I want to get rid of most of the old stuff right now, and the rest after the merge. I could do:
-```bash
+
+I know I can safely get rid of most of those now, so I do:
+
+```
 $ git folder delete-upto async 4
 keep:
   async/4
@@ -107,59 +105,34 @@ delete:
 confirm? y/N
 ```
 
-## Development
-
-To toggle between the Homebrew-installed version and a local development build:
-
-```bash
-./toggleInstallBrewOrDev.sh
+After the PR merges, I can clean up the rest with:
+```
+$ git folder delete async
 ```
 
-This script:
-- Detects which version is currently active
-- Switches between brew and local dev versions
-- Automatically builds the local version when switching to dev mode
-- Displays the active version after switching
+## Development Setup
 
-**Note:** The script installs to `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin` (whichever exists first). Ensure the chosen directory is in your PATH.
-
-
-
-
-
-# 
-
-Organize branches into folders like `async/1`, `async/2`, `async/3` and manage them as a group.
-
-Short aliases: `ls`, `inc`, `rm`, `mv`.
-
-## Example
+To work on `git folder`, you should install go and go-lint. You can do that with:
 
 ```
-$ git checkout -b feature/1
-$ git folder inc
-creating feature/2
-
-$ git folder list feature
-feature/1
-feature/2
-
-$ git folder rename feature experiment
-rename feature/ -> experiment/:
-  feature/1 -> experiment/1
-  feature/2 -> experiment/2
-confirm? y/N y
-
-$ git folder delete experiment
-delete all branches in folder experiment/:
-  experiment/1
-  experiment/2
-confirm? y/N y
+brew bundle
 ```
 
-## Why
+To run all CI checks (tests, lint, build):
 
+```
+go tool task ci
+```
+
+You can switch your local `git folder` commands between the brew install & a local development version with these:
+
+```
+go tool task use-dev
+go tool task use-brew
+```
+
+**Note:** The dev version installs to the first of `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin`.
 
 ## Colophon
 
-Vibe-coded with [Claude Code](https://claude.ai/code). Original `go` port based on [script version](.archive/gitBranchFolder.sh).
+Somewhat vibe-coded with lots of Claude Code, a smidge of Gemini, with _a lot_ of opinionated direction, hand-holding, and questioning. Original `go` port based on [script version](.archive/gitBranchFolder.sh).

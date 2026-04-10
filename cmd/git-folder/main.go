@@ -337,7 +337,6 @@ _git-folder() {
         'delete:delete all branches in a folder'
         'delete-upto:delete numbered branches below n'
         'rename:rename a folder prefix'
-        'completion:output zsh completion script'
         'version:show version'
         'help:show usage'
     )
