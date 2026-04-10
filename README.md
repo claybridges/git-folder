@@ -5,20 +5,18 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/claybridges/git-folder)](https://goreportcard.com/report/github.com/claybridges/git-folder)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A git subcommand for managing groups of branches as a folder, like `async/1`, `async/2`, etc. Using a sequence of branches can help organize and preserve interim state during iterative development. Along that path, you can squash, rebase, and experiment freely, while keeping prior work accessible.
+A git subcommand for creating and managing folders of related branches, with an emphasis on iterative sequences — `a/1`, `a/2`, `a/3`, etc.
 
 ## Why?
 
-When iterating on an idea, it's sometimes useful to keep prior branches around. In case of a failed experiment or botched rebase, this can spare you from lost time poring over a crowded reflog. Or sometimes, it's handy to preserve a series of commits you made during development; but you also need to squash and rebase that work to move forward. Folks handle this lots of ways: `temp`, `holdIt`, `foo4`, `TCKT-123_v11`, etc. `git folder` does that with a structured approach. 
-
-See the Example section below for more info on this workflow.
+Squashing, merging, and rebasing destroy context. That's usually fine — until it isn't. Developers already work around this with ad hoc branches — `save3`, `omg-works-here`, `dontDeleteYet`. Giving this structure as a numbered branch sequence preserves your iterative context — a branch time machine for experimentation.
 
 ## Install
 
 ### Homebrew (macOS)
 
 ```bash
-brew install claybridges/git-folder
+brew install claybridges/tap/git-folder
 ```
 
 ### From source
@@ -28,35 +26,15 @@ Requires Go:
 go install github.com/claybridges/git-folder/cmd/git-folder@latest
 ```
 
+### Shell completion (zsh)
+
+```zsh
+git folder completion > ~/.zsh/completions/_git-folder
+```
+
 ## Usage
 
-```
-usage: git folder <command> [<options>] [<args>]
-
-Commands:
-  delete          <folder>            delete all branches in folder
-  delete-upto     <folder> <n>        delete numbered branches below n
-  increment       [branch]|[folder]   create and checkout next numbered branch
-  list            [folder]            list branches in folder
-  rename          <existing> <new>    rename folder prefix
-
-Mostly for internal use:
-  last-number     [folder]            print highest numbered branch
-
-Options:
-  --force | -f                        skip confirmation prompts, detach & override checked out branches
-  --nocheckout | -n                   (increment only) create branch without checking out
-```
-Notes:
-* When `[folder]` is omitted, defaults to folder of current branch, if applicable.
-  
-* `delete`, `delete-upto`, and `rename` have confirmation prompts (skipped with `--force`).
-  
-* `increment`
-    - if default is not the highest branch, errors
-    - If folder is specified (rather than using default), creates a new branch from the highest numbered branch.
-
-* `git folder completion` provides zsh completion stubs.
+See the [man page](git-folder.1.md) for full command reference.
 
 ## Example
 

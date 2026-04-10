@@ -40,6 +40,10 @@ tasks:
     cmds:
       - go build -v -o {{.BINARY_NAME}} ./cmd/git-folder
 
+  all:
+    desc: Build everything (binary + man page)
+    deps: [build, man]
+
   ci:
     desc: Run all CI checks locally (Tidy -> Test -> Lint -> Build)
     deps: [tidy, test, lint, build]
@@ -84,6 +88,11 @@ tasks:
       Default: creates a new subdir in $TMPDIR
     cmds:
       - go run ./cmd/setup-example {{.CLI_ARGS}}
+
+  man:
+    desc: Generate man page from git-folder.1.md
+    cmds:
+      - pandoc git-folder.1.md -s -t man -o git-folder.1
 
   clean:
     desc: Remove built artifacts and test cache
