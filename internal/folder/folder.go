@@ -108,7 +108,14 @@ func DetectTrunk() (string, error) {
 	if err == nil && out != "" {
 		// "refs/remotes/origin/main" → "main"
 		parts := strings.Split(out, "/")
-		return parts[len(parts)-1], nil
+		name := parts[len(parts)-1]
+		if _, err := git("rev-parse", "--verify", name); err == nil {
+			return name, nil
+		}
+		remoteName := "origin/" + name
+		if _, err := git("rev-parse", "--verify", remoteName); err == nil {
+			return remoteName, nil
+		}
 	}
 	// Fall back to local branches
 	if _, err := git("rev-parse", "--verify", "main"); err == nil {

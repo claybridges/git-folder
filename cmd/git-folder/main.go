@@ -330,6 +330,14 @@ func cmdSquash(args []string) error {
 		return err
 	}
 
+	// Bail if working tree or index is dirty
+	if err = exec.Command("git", "diff", "--quiet").Run(); err != nil {
+		return fmt.Errorf("working tree has uncommitted changes; commit or stash first")
+	}
+	if err = exec.Command("git", "diff", "--cached", "--quiet").Run(); err != nil {
+		return fmt.Errorf("index has staged changes; commit or stash first")
+	}
+
 	// Detect trunk
 	trunk, err := folder.DetectTrunk()
 	if err != nil {
@@ -355,7 +363,10 @@ func cmdSquash(args []string) error {
 	if err != nil {
 		return err
 	}
-	count, _ := strconv.Atoi(countStr)
+	count, err := strconv.Atoi(countStr)
+	if err != nil {
+		return fmt.Errorf("unexpected output from git rev-list --count: %q", countStr)
+	}
 	if count == 0 {
 		return fmt.Errorf("only one commit on branch, nothing to squash")
 	}
