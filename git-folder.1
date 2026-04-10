@@ -7,32 +7,37 @@ git\-folder \- manage groups of git branches as folders
 .IP
 .EX
 git folder list <folder>
-git folder last\-number <folder>
 git folder increment [<folder>]
 git folder squash
 git folder delete [\-\-force] <folder>
 git folder delete\-upto [\-\-force] <folder> <n>
 git folder rename [\-\-force] <old> <new>
+git folder max branch <folder>
+git folder max number <folder>
 .EE
 .SH DESCRIPTION
 \f[B]git\-folder\f[R] manages groups of related branches under a common
 prefix, like \f[CR]a/1\f[R], \f[CR]a/2\f[R], \f[CR]a/3\f[R], etc.
-.SH COMMANDS
+.SH HIGH\-LEVEL COMMANDS (PORCELAIN)
 .TP
 \f[B]list\f[R] \f[I]<folder>\f[R]
 List all branches in the folder.
-.TP
-\f[B]last\-number\f[R] \f[I]<folder>\f[R]
-Print the highest numbered branch suffix in the folder.
 .TP
 \f[B]increment\f[R] \f[I][folder]\f[R]
 Create and checkout the next numbered branch.
 If \f[I]folder\f[R] is omitted, defaults to the folder of the current
 branch.
-Errors if the current branch is not the highest numbered branch in the
-folder.
-If \f[I]folder\f[R] is specified, creates from the highest numbered
-branch regardless of current branch.
+Errors if the current branch is not the max branch in the folder.
+If \f[I]folder\f[R] is specified, creates from the max branch regardless
+of current branch.
+.TP
+\f[B]squash\f[R]
+When called with the max branch in a folder checked out, creates the
+next numbered branch and squashes all commits since the divergence from
+the trunk branch (main/master) into one commit.
+Detects the trunk branch automatically.
+Errors if the current branch is not a folder branch or not the max
+branch.
 .TP
 \f[B]squash\f[R]
 When called with the highest numbered branch in a folder checked out,
@@ -55,6 +60,15 @@ Prompts for confirmation unless \f[CR]\-\-force\f[R] is set.
 \f[B]rename\f[R] \f[I]<old>\f[R] \f[I]<new>\f[R]
 Rename all branches from prefix \f[I]old\f[R] to \f[I]new\f[R].
 Prompts for confirmation unless \f[CR]\-\-force\f[R] is set.
+.SH LOW\-LEVEL COMMANDS (PLUMBING)
+.TP
+\f[B]max branch\f[R] \f[I]<folder>\f[R]
+Print the full name of the max branch in the folder
+(e.g.\ \f[CR]async/4\f[R]).
+.TP
+\f[B]max number\f[R] \f[I]<folder>\f[R]
+Print the numeric suffix of the max branch in the folder
+(e.g.\ \f[CR]4\f[R]).
 .SH OPTIONS
 .TP
 \f[B]\(enforce\f[R], \f[B]\-f\f[R]
