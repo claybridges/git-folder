@@ -965,6 +965,7 @@ func TestDeleteUptoCheckedOutBranch(t *testing.T) {
 		run(t, dir, "git", "checkout", "test/1")
 
 		forceFlag = true
+		defer func() { forceFlag = false }()
 		err := cmdDeleteUpto([]string{"test", "3"})
 		if err != nil {
 			t.Fatalf("unexpected error with --force: %v", err)
@@ -975,8 +976,6 @@ func TestDeleteUptoCheckedOutBranch(t *testing.T) {
 		if len(branches) != 1 || branches[0] != "test/3" {
 			t.Fatalf("expected only test/3, got: %v", branches)
 		}
-
-		forceFlag = false
 	})
 }
 
@@ -1008,6 +1007,7 @@ func TestRenameCheckedOutBranch(t *testing.T) {
 		run(t, dir, "git", "checkout", "-b", "old/1")
 
 		forceFlag = true
+		defer func() { forceFlag = false }()
 		err := cmdRename([]string{"old", "new"})
 		if err != nil {
 			t.Fatalf("unexpected error with --force: %v", err)
@@ -1031,8 +1031,6 @@ func TestRenameCheckedOutBranch(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected detached HEAD (command should fail), got branch: %v", strings.TrimSpace(string(out)))
 		}
-
-		forceFlag = false
 	})
 }
 
@@ -1049,6 +1047,7 @@ func TestDeleteBranchInWorktree(t *testing.T) {
 
 	// Should error even with --force
 	forceFlag = true
+	defer func() { forceFlag = false }()
 	err := cmdDelete([]string{"test"})
 	if err == nil {
 		t.Fatal("expected error when deleting branch in worktree")
@@ -1062,8 +1061,6 @@ func TestDeleteBranchInWorktree(t *testing.T) {
 	if len(branches) != 1 {
 		t.Fatalf("expected branch to still exist, got: %v", branches)
 	}
-
-	forceFlag = false
 }
 
 func TestDeleteMultipleBranchesInWorktrees(t *testing.T) {
@@ -1080,6 +1077,7 @@ func TestDeleteMultipleBranchesInWorktrees(t *testing.T) {
 
 	// Should error and list both branches
 	forceFlag = true
+	defer func() { forceFlag = false }()
 	err := cmdDelete([]string{"test"})
 	if err == nil {
 		t.Fatal("expected error when deleting branches in worktrees")
@@ -1087,6 +1085,4 @@ func TestDeleteMultipleBranchesInWorktrees(t *testing.T) {
 	if !strings.Contains(err.Error(), "test/1") || !strings.Contains(err.Error(), "test/2") {
 		t.Fatalf("expected both branches listed, got: %v", err)
 	}
-
-	forceFlag = false
 }

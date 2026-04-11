@@ -352,15 +352,15 @@ func cmdRename(args []string) error {
 		return fmt.Errorf("no branches in folder %s/", oldName)
 	}
 
-	// Check if any source branches are checked out
-	if err := checkBranchesNotCheckedOut(sources); err != nil {
-		return err
-	}
-
-	// Check for conflicts
+	// Check for conflicts before any side effects
 	existing, _ := folder.Enumerate(newName)
 	if len(existing) > 0 {
 		return fmt.Errorf("target folder %s/ already has branches", newName)
+	}
+
+	// Check if any source branches are checked out
+	if err := checkBranchesNotCheckedOut(sources); err != nil {
+		return err
 	}
 
 	// Build rename pairs
