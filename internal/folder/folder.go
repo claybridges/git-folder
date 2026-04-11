@@ -47,7 +47,7 @@ func NumberFloat(branch string) (float64, bool) {
 
 // Enumerate lists all branches matching a folder prefix.
 func Enumerate(folder string) ([]string, error) {
-	out, err := git("branch", "--format=%(refname:short)", "--list", folder+"/*")
+	out, err := git("for-each-ref", "--format=%(refname:short)", "refs/heads/"+folder+"/")
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +78,27 @@ func LastNumber(folder string) (float64, error) {
 		return -1, fmt.Errorf("no numbered branches in folder %s/", folder)
 	}
 	return max, nil
+}
+
+// MaxBranch returns the full branch name of the max branch in a folder (e.g. "async/4").
+func MaxBranch(folderName string) (string, error) {
+	n, err := LastNumber(folderName)
+	if err != nil {
+		return "", err
+	}
+	if n == float64(int(n)) {
+		return fmt.Sprintf("%s/%d", folderName, int(n)), nil
+	}
+	return fmt.Sprintf("%s/%g", folderName, n), nil
+}
+
+// CurrentBranch returns the name of the currently checked-out branch, or "" if detached.
+func CurrentBranch() (string, error) {
+	out, err := git("symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil || out == "" {
+		return "", nil
+	}
+	return out, nil
 }
 
 // CurrentFolder returns the folder name of the current branch, or "" if not on a folder branch.
