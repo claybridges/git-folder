@@ -908,6 +908,7 @@ func TestDeleteCheckedOutBranch(t *testing.T) {
 		run(t, dir, "git", "checkout", "-b", "test/1")
 
 		forceFlag = true
+		defer func() { forceFlag = false }()
 		err := cmdDelete([]string{"test"})
 		if err != nil {
 			t.Fatalf("unexpected error with --force: %v", err)
@@ -927,7 +928,6 @@ func TestDeleteCheckedOutBranch(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected detached HEAD (command should fail), got branch: %v", strings.TrimSpace(string(out)))
 		}
-
 	})
 }
 

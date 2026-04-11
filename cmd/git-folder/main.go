@@ -43,17 +43,42 @@ func confirm(prompt string) bool {
 }
 
 func checkBranchesNotCheckedOut(branches []string) error {
-	// Get current branch
+	// Get current branch first (needed by both checks)
 	out, _ := exec.Command("git", "symbolic-ref", "--quiet", "--short", "HEAD").Output()
 	current := strings.TrimSpace(string(out))
 
-	var checkedOutInWorktrees []string
+	// Check worktrees first (fail early before any side effects)
+	// Skip the current branch here — it's handled by the detach logic below.
+	wtOut, err := exec.Command("git", "worktree", "list", "--porcelain").Output()
+	if err == nil {
+		var checkedOutInWorktrees []string
+		lines := strings.Split(string(wtOut), "\n")
+		for _, line := range lines {
+			if !strings.HasPrefix(line, "branch ") {
+				continue
+			}
+			wtBranch := strings.TrimPrefix(line, "branch refs/heads/")
+			if wtBranch == current {
+				continue
+			}
+			for _, b := range branches {
+				if b == wtBranch {
+					checkedOutInWorktrees = append(checkedOutInWorktrees, b)
+				}
+			}
+		}
+		if len(checkedOutInWorktrees) > 0 {
+			if len(checkedOutInWorktrees) == 1 {
+				return fmt.Errorf("cannot modify branch '%s': checked out in a worktree", checkedOutInWorktrees[0])
+			}
+			return fmt.Errorf("cannot modify branches: checked out in worktrees: %s", strings.Join(checkedOutInWorktrees, ", "))
+		}
+	}
 
 	// Check if current branch is in list
 	for _, b := range branches {
 		if b == current {
 			if forceFlag {
-				// Detach HEAD at current commit so we can modify the branch
 				fmt.Printf("Detaching HEAD from '%s' (branch is being modified)\n", b)
 				if err := gitExec("checkout", "--detach"); err != nil {
 					return fmt.Errorf("failed to detach HEAD: %w", err)
@@ -62,33 +87,6 @@ func checkBranchesNotCheckedOut(branches []string) error {
 				return fmt.Errorf("cannot modify branch '%s': currently checked out (use --force to detach)", b)
 			}
 		}
-	}
-
-	// Check worktrees
-	out, err := exec.Command("git", "worktree", "list", "--porcelain").Output()
-	if err != nil {
-		// If worktree command fails, continue (no worktrees or git doesn't support it)
-		return nil
-	}
-
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		if !strings.HasPrefix(line, "branch ") {
-			continue
-		}
-		wtBranch := strings.TrimPrefix(line, "branch refs/heads/")
-		for _, b := range branches {
-			if b == wtBranch {
-				checkedOutInWorktrees = append(checkedOutInWorktrees, b)
-			}
-		}
-	}
-
-	if len(checkedOutInWorktrees) > 0 {
-		if len(checkedOutInWorktrees) == 1 {
-			return fmt.Errorf("cannot modify branch '%s': checked out in a worktree", checkedOutInWorktrees[0])
-		}
-		return fmt.Errorf("cannot modify branches: checked out in worktrees: %s", strings.Join(checkedOutInWorktrees, ", "))
 	}
 
 	return nil
