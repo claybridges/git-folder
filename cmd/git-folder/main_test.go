@@ -1042,7 +1042,7 @@ func TestDeleteBranchInWorktree(t *testing.T) {
 	run(t, dir, "git", "checkout", "main")
 
 	// Create worktree
-	wtDir := dir + "/wt"
+	wtDir := filepath.Join(dir, "wt")
 	run(t, dir, "git", "worktree", "add", wtDir, "test/1")
 
 	// Should error even with --force
@@ -1072,8 +1072,8 @@ func TestDeleteMultipleBranchesInWorktrees(t *testing.T) {
 	run(t, dir, "git", "checkout", "main")
 
 	// Create worktrees for both
-	run(t, dir, "git", "worktree", "add", dir+"/wt1", "test/1")
-	run(t, dir, "git", "worktree", "add", dir+"/wt2", "test/2")
+	run(t, dir, "git", "worktree", "add", filepath.Join(dir, "wt1"), "test/1")
+	run(t, dir, "git", "worktree", "add", filepath.Join(dir, "wt2"), "test/2")
 
 	// Should error and list both branches
 	forceFlag = true

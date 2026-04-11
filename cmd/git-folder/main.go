@@ -378,7 +378,10 @@ func cmdRename(args []string) error {
 	}
 
 	// Check for conflicts before any side effects
-	existing, _ := folder.Enumerate(newName)
+	existing, err := folder.Enumerate(newName)
+	if err != nil {
+		return err
+	}
 	if len(existing) > 0 {
 		return fmt.Errorf("target folder %s/ already has branches", newName)
 	}
