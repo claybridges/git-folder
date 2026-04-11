@@ -158,8 +158,18 @@ func usage() {
 	fmt.Fprint(os.Stderr, usageText)
 }
 
+func validateFolder(name string) error {
+	if strings.Contains(name, "/") {
+		return fmt.Errorf("folder name %q must not contain '/'; use a simple prefix like %q", name, strings.SplitN(name, "/", 2)[0])
+	}
+	return nil
+}
+
 func resolveFolder(args []string) (string, error) {
 	if len(args) == 1 {
+		if err := validateFolder(args[0]); err != nil {
+			return "", err
+		}
 		return args[0], nil
 	}
 	if len(args) == 0 {
@@ -200,6 +210,11 @@ func cmdLastNumber(args []string) error {
 		return fmt.Errorf("usage: git folder last-number <folder>")
 	}
 
+	sub, folderName := args[0], args[1]
+	if err := validateFolder(folderName); err != nil {
+		return err
+	}
+
 	n, err := folder.LastNumber(args[0])
 	if err != nil {
 		return err
@@ -217,6 +232,9 @@ func cmdIncrement(args []string) error {
 	var name string
 
 	if len(args) == 1 {
+		if err := validateFolder(args[0]); err != nil {
+			return err
+		}
 		name = args[0]
 	} else if len(args) == 0 {
 		cur, err := folder.CurrentFolder()
@@ -304,6 +322,9 @@ func cmdDeleteUpto(args []string) error {
 	}
 
 	folderName := args[0]
+	if err := validateFolder(folderName); err != nil {
+		return err
+	}
 	n, err := strconv.ParseFloat(args[1], 64)
 	if err != nil {
 		return fmt.Errorf("invalid number: %s", args[1])
@@ -368,6 +389,12 @@ func cmdRename(args []string) error {
 	}
 
 	oldName, newName := args[0], args[1]
+	if err := validateFolder(oldName); err != nil {
+		return err
+	}
+	if err := validateFolder(newName); err != nil {
+		return err
+	}
 
 	sources, err := folder.Enumerate(oldName)
 	if err != nil {
