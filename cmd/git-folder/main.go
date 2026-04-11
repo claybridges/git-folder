@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	_ "embed"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -40,6 +41,70 @@ func confirm(prompt string) bool {
 	answer, _ := reader.ReadString('\n')
 	answer = strings.TrimSpace(strings.ToLower(answer))
 	return answer == "y"
+}
+
+// branchesPreflight validates that the given branches can be modified.
+// It returns the name of the current branch if it needs to be detached
+// (i.e. --force is set and the current branch is in the list), or "" if not.
+// It fails closed: errors from git symbolic-ref and git worktree list are returned.
+func branchesPreflight(branches []string) (detachBranch string, err error) {
+	// Get current branch; exit code 1 = detached HEAD (ok), anything else = error.
+	out, symErr := exec.Command("git", "symbolic-ref", "--quiet", "--short", "HEAD").Output()
+	current := strings.TrimSpace(string(out))
+	if symErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(symErr, &exitErr) && exitErr.ExitCode() == 1 {
+			current = "" // detached HEAD
+		} else {
+			return "", fmt.Errorf("failed to determine current branch: %w", symErr)
+		}
+	}
+
+	// Check worktrees — fail closed if this command fails.
+	wtOut, wtErr := exec.Command("git", "worktree", "list", "--porcelain").Output()
+	if wtErr != nil {
+		return "", fmt.Errorf("failed to check git worktrees: %w", wtErr)
+	}
+	var inWorktrees []string
+	for _, line := range strings.Split(string(wtOut), "\n") {
+		if !strings.HasPrefix(line, "branch ") {
+			continue
+		}
+		wtBranch := strings.TrimPrefix(line, "branch refs/heads/")
+		if wtBranch == current {
+			continue // handled below
+		}
+		for _, b := range branches {
+			if b == wtBranch {
+				inWorktrees = append(inWorktrees, b)
+			}
+		}
+	}
+	if len(inWorktrees) == 1 {
+		return "", fmt.Errorf("cannot modify branch '%s': checked out in a worktree", inWorktrees[0])
+	} else if len(inWorktrees) > 1 {
+		return "", fmt.Errorf("cannot modify branches: checked out in worktrees: %s", strings.Join(inWorktrees, ", "))
+	}
+
+	// Check if current branch is in list.
+	for _, b := range branches {
+		if b == current {
+			if forceFlag {
+				return current, nil // caller will detach before first mutation
+			}
+			return "", fmt.Errorf("cannot modify branch '%s': currently checked out (use --force to detach)", b)
+		}
+	}
+	return "", nil
+}
+
+// detachHEAD detaches HEAD from the named branch, printing a message.
+func detachHEAD(branch string) error {
+	fmt.Printf("Detaching HEAD from '%s' (branch is being modified)\n", branch)
+	if err := gitExec("checkout", "--detach"); err != nil {
+		return fmt.Errorf("failed to detach HEAD: %w", err)
+	}
+	return nil
 }
 
 func main() {
@@ -205,6 +270,11 @@ func cmdDelete(args []string) error {
 		return fmt.Errorf("no branches in folder %s/", name)
 	}
 
+	detach, err := branchesPreflight(branches)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("delete all branches in folder %s/:\n", name)
 	for _, b := range branches {
 		fmt.Printf("  %s\n", b)
@@ -215,6 +285,11 @@ func cmdDelete(args []string) error {
 		return nil
 	}
 
+	if detach != "" {
+		if err := detachHEAD(detach); err != nil {
+			return err
+		}
+	}
 	for _, b := range branches {
 		if err := gitExec("branch", "-D", b); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", b, err)
@@ -254,6 +329,11 @@ func cmdDeleteUpto(args []string) error {
 		return fmt.Errorf("no numbered branches below %v in folder %s/", n, folderName)
 	}
 
+	detach, err := branchesPreflight(toDelete)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("keep:\n")
 	for _, b := range toKeep {
 		fmt.Printf("  %s\n", b)
@@ -269,6 +349,11 @@ func cmdDeleteUpto(args []string) error {
 		return nil
 	}
 
+	if detach != "" {
+		if err := detachHEAD(detach); err != nil {
+			return err
+		}
+	}
 	for _, b := range toDelete {
 		if err := gitExec("branch", "-D", b); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", b, err)
@@ -292,10 +377,18 @@ func cmdRename(args []string) error {
 		return fmt.Errorf("no branches in folder %s/", oldName)
 	}
 
-	// Check for conflicts
-	existing, _ := folder.Enumerate(newName)
+	// Check for conflicts before any side effects
+	existing, err := folder.Enumerate(newName)
+	if err != nil {
+		return err
+	}
 	if len(existing) > 0 {
 		return fmt.Errorf("target folder %s/ already has branches", newName)
+	}
+
+	detach, err := branchesPreflight(sources)
+	if err != nil {
+		return err
 	}
 
 	// Build rename pairs
@@ -316,6 +409,11 @@ func cmdRename(args []string) error {
 		return nil
 	}
 
+	if detach != "" {
+		if err := detachHEAD(detach); err != nil {
+			return err
+		}
+	}
 	for _, p := range pairs {
 		if err := gitExec("branch", "-m", p.from, p.to); err != nil {
 			return fmt.Errorf("failed to rename %s -> %s: %w", p.from, p.to, err)
