@@ -10,12 +10,13 @@ git-folder - manage groups of git branches as folders
 
 ```
 git folder list <folder>
-git folder last-number <folder>
 git folder increment [<folder>]
 git folder squash
 git folder delete [--force] <folder>
 git folder delete-upto [--force] <folder> <n>
 git folder rename [--force] <old> <new>
+git folder max branch <folder>
+git folder max number <folder>
 ```
 
 # DESCRIPTION
@@ -23,19 +24,23 @@ git folder rename [--force] <old> <new>
 **git-folder** manages groups of related branches under a common prefix, like
 `a/1`, `a/2`, `a/3`, etc.
 
-# COMMANDS
+# HIGH-LEVEL COMMANDS (PORCELAIN)
 
 **list** *\<folder\>*
 :   List all branches in the folder.
 
-**last-number** *\<folder\>*
-:   Print the highest numbered branch suffix in the folder.
-
 **increment** *[folder]*
 :   Create and checkout the next numbered branch. If *folder* is omitted,
     defaults to the folder of the current branch. Errors if the current branch
-    is not the highest numbered branch in the folder. If *folder* is specified,
-    creates from the highest numbered branch regardless of current branch.
+    is not the max branch in the folder. If *folder* is specified, creates
+    from the max branch regardless of current branch.
+
+**squash**
+:   When called with the max branch in a folder checked out, creates the next
+    numbered branch and squashes all commits since the divergence from the
+    trunk branch (main/master) into one commit. Detects the trunk branch
+    automatically. Errors if the current branch is not a folder branch or not
+    the max branch.
 
 **squash**
 :   When called with the highest numbered branch in a folder checked out,
@@ -56,6 +61,14 @@ git folder rename [--force] <old> <new>
 **rename** *\<old\>* *\<new\>*
 :   Rename all branches from prefix *old* to *new*. Prompts for confirmation
     unless `--force` is set.
+
+# LOW-LEVEL COMMANDS (PLUMBING)
+
+**max branch** *\<folder\>*
+:   Print the full name of the max branch in the folder (e.g. `async/4`).
+
+**max number** *\<folder\>*
+:   Print the numeric suffix of the max branch in the folder (e.g. `4`).
 
 # OPTIONS
 

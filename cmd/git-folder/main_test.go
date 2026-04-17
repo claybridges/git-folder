@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,6 +91,29 @@ func branchList(t *testing.T, dir, pattern string) []string {
 	return strings.Split(out, "\n")
 }
 
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stdout
+	os.Stdout = w
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = orig
+	out, err2 := io.ReadAll(r)
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func withStdin(t *testing.T, input string) {
 	t.Helper()
 	r, w, err := os.Pipe()
@@ -147,9 +171,9 @@ func TestCmdListBadArgs(t *testing.T) {
 	}
 }
 
-// --- cmdLastNumber ---
+// --- cmdMax ---
 
-func TestCmdLastNumber(t *testing.T) {
+func TestCmdMaxBranch(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
 
@@ -157,31 +181,58 @@ func TestCmdLastNumber(t *testing.T) {
 	run(t, dir, "git", "branch", "foo/5")
 	run(t, dir, "git", "branch", "foo/3")
 
-	err := cmdLastNumber([]string{"foo"})
-	if err != nil {
-		t.Fatal(err)
+	out := captureStdout(t, func() {
+		if err := cmdMax([]string{"branch", "foo"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if out != "foo/5" {
+		t.Fatalf("expected foo/5, got %q", out)
 	}
 }
 
-func TestCmdLastNumberEmpty(t *testing.T) {
+func TestCmdMaxNumber(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
 
-	err := cmdLastNumber([]string{"nonexistent"})
-	if err == nil {
+	run(t, dir, "git", "branch", "foo/1")
+	run(t, dir, "git", "branch", "foo/5")
+	run(t, dir, "git", "branch", "foo/3")
+
+	out := captureStdout(t, func() {
+		if err := cmdMax([]string{"number", "foo"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if out != "5" {
+		t.Fatalf("expected 5, got %q", out)
+	}
+}
+
+func TestCmdMaxEmpty(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	if err := cmdMax([]string{"branch", "nonexistent"}); err == nil {
 		t.Fatal("expected error for nonexistent folder")
 	}
 }
 
-func TestCmdLastNumberBadArgs(t *testing.T) {
-	if err := cmdLastNumber(nil); err == nil {
+func TestCmdMaxBadArgs(t *testing.T) {
+	if err := cmdMax(nil); err == nil {
 		t.Fatal("expected error for no args")
+	}
+	if err := cmdMax([]string{"branch"}); err == nil {
+		t.Fatal("expected error for missing folder")
+	}
+	if err := cmdMax([]string{"bogus", "foo"}); err == nil {
+		t.Fatal("expected error for unknown subcommand")
 	}
 }
 
-func TestCmdLastNumberNotARepo(t *testing.T) {
+func TestCmdMaxNotARepo(t *testing.T) {
 	inNonRepo(t)
-	if err := cmdLastNumber([]string{"foo"}); err == nil {
+	if err := cmdMax([]string{"branch", "foo"}); err == nil {
 		t.Fatal("expected error outside git repo")
 	}
 }

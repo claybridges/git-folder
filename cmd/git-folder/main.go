@@ -126,8 +126,8 @@ func main() {
 		err = cmdList(args[1:])
 	case "increment":
 		err = cmdIncrement(args[1:])
-	case "last-number":
-		err = cmdLastNumber(args[1:])
+	case "max":
+		err = cmdMax(args[1:])
 	case "delete":
 		err = cmdDelete(args[1:])
 	case "delete-upto":
@@ -195,20 +195,31 @@ func cmdList(args []string) error {
 	return nil
 }
 
-func cmdLastNumber(args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: git folder last-number <folder>")
+func cmdMax(args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("usage: git folder max branch|number <folder>")
 	}
+	sub, folderName := args[0], args[1]
 
-	n, err := folder.LastNumber(args[0])
-	if err != nil {
-		return err
-	}
-
-	if n == float64(int(n)) {
-		fmt.Println(int(n))
-	} else {
-		fmt.Println(n)
+	switch sub {
+	case "branch":
+		b, err := folder.MaxBranch(folderName)
+		if err != nil {
+			return err
+		}
+		fmt.Println(b)
+	case "number":
+		n, err := folder.LastNumber(folderName)
+		if err != nil {
+			return err
+		}
+		if n == float64(int(n)) {
+			fmt.Println(int(n))
+		} else {
+			fmt.Println(n)
+		}
+	default:
+		return fmt.Errorf("unknown max subcommand %q; use branch or number", sub)
 	}
 	return nil
 }
@@ -228,14 +239,17 @@ func cmdIncrement(args []string) error {
 		}
 		name = cur
 
-		// When inferring, verify we're on the highest number
-		curNum := folder.CurrentNumber()
-		last, err := folder.LastNumber(name)
-		if err != nil {
-			return err
+		// When inferring, verify we're on the max branch
+		cur, err2 := folder.CurrentBranch()
+		if err2 != nil {
+			return err2
 		}
-		if float64(curNum) != last {
-			return fmt.Errorf("current branch is %s/%d but max is %s/%g", name, curNum, name, last)
+		max, err2 := folder.MaxBranch(name)
+		if err2 != nil {
+			return err2
+		}
+		if cur != max {
+			return fmt.Errorf("current branch is %s but max branch is %s", cur, max)
 		}
 	} else {
 		return fmt.Errorf("usage: git folder increment [folder]")
@@ -506,7 +520,7 @@ _git-folder() {
     local -a commands
     commands=(
         'list:list branches in a folder'
-        'last-number:print highest numbered branch'
+        'max:print max branch or number'
         'increment:create next numbered branch'
         'delete:delete all branches in a folder'
         'delete-upto:delete numbered branches below n'
@@ -526,7 +540,7 @@ _git-folder() {
             ;;
         args)
             case $words[1] in
-                list|last-number|delete|delete-upto|increment|rename)
+                list|delete|delete-upto|increment|rename)
                     _git-folder-folders
                     ;;
             esac
