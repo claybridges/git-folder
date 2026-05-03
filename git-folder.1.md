@@ -12,7 +12,7 @@ git-folder - manage groups of git branches as folders
 git folder list <folder>
 git folder increment [<folder>]
 git folder squash
-git folder delete [--force] [--upto <n>] <folder>
+git folder delete [--force] [--upto <n>] [<folder>]
 git folder rename [--force] <old> <new>
 git folder max [branch|number] [<folder>]
 ```
@@ -40,9 +40,10 @@ git folder max [branch|number] [<folder>]
     automatically. Errors if the current branch is not a folder branch or not
     the max branch.
 
-**delete** [**--upto** *\<n\>*] *\<folder\>*
-:   Delete all branches in the folder. With **--upto** *\<n\>*, delete only
-    numeric branches with suffix less than *n*; non-numeric branches (e.g.
+**delete** [**--upto** *\<n\>*] *[\<folder\>]*
+:   Delete all branches in the folder. If *folder* is omitted, infers from
+    the current branch. With **--upto** *\<n\>*, delete only numeric
+    branches with suffix less than *n*; non-numeric branches (e.g.
     `async/temp`) are preserved. Prompts for confirmation unless `--force`
     is set.
 

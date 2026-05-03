@@ -564,6 +564,10 @@ _git-folder() {
             _describe 'command' commands
             ;;
         args)
+            # After --upto, expect a numeric threshold; don't suggest folders.
+            if [[ ${words[CURRENT-1]} == "--upto" ]]; then
+                return
+            fi
             case $words[1] in
                 list|delete|increment|rename)
                     _git-folder-folders
