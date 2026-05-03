@@ -12,8 +12,7 @@ git-folder - manage groups of git branches as folders
 git folder list <folder>
 git folder increment [<folder>]
 git folder squash
-git folder delete [--force] <folder>
-git folder delete-upto [--force] <folder> <n>
+git folder delete [--force] [--upto <n>] <folder>
 git folder rename [--force] <old> <new>
 git folder max [branch|number] [<folder>]
 ```
@@ -41,14 +40,11 @@ git folder max [branch|number] [<folder>]
     automatically. Errors if the current branch is not a folder branch or not
     the max branch.
 
-**delete** *\<folder\>*
-:   Delete all branches in the folder. Prompts for confirmation unless
-    `--force` is set.
-
-**delete-upto** *\<folder\>* *\<n\>*
-:   Delete all numeric branches in the folder with suffix less than *n*.
-    Non-numeric branches (e.g. `async/temp`) are preserved. Prompts for
-    confirmation unless `--force` is set.
+**delete** [**--upto** *\<n\>*] *\<folder\>*
+:   Delete all branches in the folder. With **--upto** *\<n\>*, delete only
+    numeric branches with suffix less than *n*; non-numeric branches (e.g.
+    `async/temp`) are preserved. Prompts for confirmation unless `--force`
+    is set.
 
 **rename** *\<old\>* *\<new\>*
 :   Rename all branches from prefix *old* to *new*. Prompts for confirmation
@@ -76,7 +72,7 @@ contains no `/`, the command fails.
 
 Numeric branch suffixes may be integers or decimals (e.g. `2`, `2.5`).
 Non-numeric suffixes (e.g. `temp`, `bigbooty`) are treated as opaque and
-ignored by **increment** and **delete-upto**.
+ignored by **increment** and **delete --upto**.
 
 # COMPLETION
 
@@ -114,7 +110,7 @@ async/temp
 Delete old branches, keeping from 4 onward:
 
 ```
-$ git folder delete-upto async 4
+$ git folder delete --upto 4 async
 keep:
   async/4
   async/bigbooty

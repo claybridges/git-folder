@@ -10,8 +10,7 @@
 - `list <folder>` — list all branches in a folder
 - `increment [folder]` — create and check out the next numbered branch; errors if not on the max branch when folder is inferred
 - `squash` — increment + squash all commits since trunk divergence into one
-- `delete [--force] <folder>` — delete all branches in folder (with confirmation)
-- `delete-upto [--force] <folder> <n>` — delete numeric branches below n
+- `delete [--force] [--upto <n>] <folder>` — delete branches in folder (with confirmation); `--upto <n>` deletes only numeric branches below n
 - `rename [--force] <old> <new>` — rename a folder prefix
 
 **Plumbing:**
