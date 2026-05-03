@@ -68,7 +68,7 @@ async/temp
 I know I can safely get rid of most of those now, so I do:
 
 ```
-$ git folder delete-upto async 4
+$ git folder delete --upto 4 async
 keep:
   async/4
   async/5
