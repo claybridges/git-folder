@@ -628,6 +628,142 @@ func TestCmdRenameBadArgs(t *testing.T) {
 	}
 }
 
+// --- cmdCombine ---
+
+func TestCmdCombineUnique(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "src/1")
+	run(t, dir, "git", "branch", "src/2")
+	run(t, dir, "git", "branch", "tgt/3")
+
+	withStdin(t, "y\n")
+	if err := cmdCombine([]string{"tgt", "src"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := branchList(t, dir, "src/*"); len(got) != 0 {
+		t.Errorf("source branches should be gone: %v", got)
+	}
+	got := branchList(t, dir, "tgt/*")
+	want := []string{"tgt/1", "tgt/2", "tgt/3"}
+	for _, w := range want {
+		if !slices.Contains(got, w) {
+			t.Errorf("expected %s, got: %v", w, got)
+		}
+	}
+}
+
+func TestCmdCombineUniqueConflict(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "src/1")
+	run(t, dir, "git", "branch", "tgt/1")
+
+	if err := cmdCombine([]string{"tgt", "src"}); err == nil {
+		t.Fatal("expected conflict error with default unique strategy")
+	}
+}
+
+func TestCmdCombinePreferTarget(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "src/1")
+	run(t, dir, "git", "commit", "--allow-empty", "-m", "src1")
+	srcSha := run(t, dir, "git", "rev-parse", "src/1")
+
+	run(t, dir, "git", "checkout", "main")
+	run(t, dir, "git", "checkout", "-b", "tgt/1")
+	run(t, dir, "git", "commit", "--allow-empty", "-m", "tgt1")
+	tgtSha := run(t, dir, "git", "rev-parse", "tgt/1")
+	run(t, dir, "git", "checkout", "main")
+
+	withStdin(t, "y\n")
+	if err := cmdCombine([]string{"--strategy", "prefer-target", "tgt", "src"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := branchList(t, dir, "src/*"); len(got) != 0 {
+		t.Errorf("source branches should be gone: %v", got)
+	}
+	keptSha := run(t, dir, "git", "rev-parse", "tgt/1")
+	if keptSha != tgtSha {
+		t.Errorf("expected target sha %s preserved, got %s (src was %s)", tgtSha, keptSha, srcSha)
+	}
+}
+
+func TestCmdCombinePreferCombine(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "src/1")
+	run(t, dir, "git", "commit", "--allow-empty", "-m", "src1")
+	srcSha := run(t, dir, "git", "rev-parse", "src/1")
+
+	run(t, dir, "git", "checkout", "main")
+	run(t, dir, "git", "checkout", "-b", "tgt/1")
+	run(t, dir, "git", "commit", "--allow-empty", "-m", "tgt1")
+	run(t, dir, "git", "checkout", "main")
+
+	withStdin(t, "y\n")
+	if err := cmdCombine([]string{"--strategy", "prefer-combine", "tgt", "src"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := branchList(t, dir, "src/*"); len(got) != 0 {
+		t.Errorf("source branches should be gone: %v", got)
+	}
+	keptSha := run(t, dir, "git", "rev-parse", "tgt/1")
+	if keptSha != srcSha {
+		t.Errorf("expected source sha %s to win, got %s", srcSha, keptSha)
+	}
+}
+
+func TestCmdCombineEmptySource(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "tgt/1")
+
+	if err := cmdCombine([]string{"tgt", "nope"}); err == nil {
+		t.Fatal("expected error for empty source folder")
+	}
+}
+
+func TestCmdCombineAbort(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "src/1")
+
+	withStdin(t, "n\n")
+	if err := cmdCombine([]string{"tgt", "src"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := branchList(t, dir, "src/*"); len(got) != 1 {
+		t.Errorf("source should remain on abort: %v", got)
+	}
+}
+
+func TestCmdCombineBadArgs(t *testing.T) {
+	if err := cmdCombine(nil); err == nil {
+		t.Fatal("expected error for no args")
+	}
+	if err := cmdCombine([]string{"a"}); err == nil {
+		t.Fatal("expected error for one arg")
+	}
+	if err := cmdCombine([]string{"a", "a"}); err == nil {
+		t.Fatal("expected error when target == source")
+	}
+	if err := cmdCombine([]string{"--strategy", "bogus", "a", "b"}); err == nil {
+		t.Fatal("expected error for unknown strategy")
+	}
+	if err := cmdCombine([]string{"--strategy"}); err == nil {
+		t.Fatal("expected error for missing strategy value")
+	}
+}
+
 // --- cmdSquash ---
 
 func TestCmdSquash(t *testing.T) {

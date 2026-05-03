@@ -15,6 +15,7 @@ git folder squash
 git folder delete [--force] <folder>
 git folder delete-upto [--force] <folder> <n>
 git folder rename [--force] <old> <new>
+git folder combine [--force] [--strategy unique|prefer-target|prefer-combine] <target> <source>
 git folder max [branch|number] [<folder>]
 ```
 
@@ -53,6 +54,18 @@ git folder max [branch|number] [<folder>]
 **rename** *\<old\>* *\<new\>*
 :   Rename all branches from prefix *old* to *new*. Prompts for confirmation
     unless `--force` is set.
+
+**combine** [**--strategy** *unique*|*prefer-target*|*prefer-combine*] *\<target\>* *\<source\>*
+:   Merge branches of *source* folder into *target* folder by renaming each
+    `source/N` to `target/N`. The source folder is empty afterwards.
+    Conflicts (where both `source/N` and `target/N` exist) are handled by
+    *--strategy*:
+
+    - *unique* (default): fail if any conflicts exist.
+    - *prefer-target*: keep the existing `target/N` and delete `source/N`.
+    - *prefer-combine*: replace `target/N` with `source/N`.
+
+    Prompts for confirmation unless `--force` is set.
 
 # LOW-LEVEL COMMANDS (PLUMBING)
 

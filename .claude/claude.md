@@ -13,6 +13,7 @@
 - `delete [--force] <folder>` — delete all branches in folder (with confirmation)
 - `delete-upto [--force] <folder> <n>` — delete numeric branches below n
 - `rename [--force] <old> <new>` — rename a folder prefix
+- `combine [--force] [--strategy unique|prefer-target|prefer-combine] <target> <source>` — merge source folder into target; conflicts resolved by strategy (default `unique` errors on any collision)
 
 **Plumbing:**
 - `max branch <folder>` — print full name of highest-numbered branch (e.g. `async/4`)

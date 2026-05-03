@@ -136,6 +136,8 @@ func main() {
 		err = cmdSquash()
 	case "rename":
 		err = cmdRename(args[1:])
+	case "combine":
+		err = cmdCombine(args[1:])
 	case "completion":
 		cmdCompletion()
 	case "version", "--version", "-v":
@@ -482,6 +484,136 @@ func cmdRename(args []string) error {
 	return nil
 }
 
+func cmdCombine(args []string) error {
+	strategy := "unique"
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--strategy" {
+			if i+1 >= len(args) {
+				return fmt.Errorf("--strategy requires a value")
+			}
+			strategy = args[i+1]
+			switch strategy {
+			case "unique", "prefer-target", "prefer-combine":
+			default:
+				return fmt.Errorf("unknown strategy %q; use unique, prefer-target, or prefer-combine", strategy)
+			}
+			i++
+		} else {
+			rest = append(rest, args[i])
+		}
+	}
+	if len(rest) != 2 {
+		return fmt.Errorf("usage: git folder combine [--strategy unique|prefer-target|prefer-combine] <target> <source>")
+	}
+	target, source := rest[0], rest[1]
+	if err := validateFolder(target); err != nil {
+		return err
+	}
+	if err := validateFolder(source); err != nil {
+		return err
+	}
+	if target == source {
+		return fmt.Errorf("target and source must differ")
+	}
+
+	sourceBranches, err := folder.Enumerate(source)
+	if err != nil {
+		return err
+	}
+	if len(sourceBranches) == 0 {
+		return fmt.Errorf("no branches in folder %s/", source)
+	}
+	targetBranches, err := folder.Enumerate(target)
+	if err != nil {
+		return err
+	}
+	targetSet := make(map[string]bool, len(targetBranches))
+	for _, b := range targetBranches {
+		targetSet[b] = true
+	}
+
+	type op struct {
+		kind     string // "rename", "delete-source", "replace"
+		from, to string
+	}
+	var ops []op
+	var conflicts []string
+	for _, src := range sourceBranches {
+		suffix := src[len(source):]
+		dst := target + suffix
+		if targetSet[dst] {
+			conflicts = append(conflicts, fmt.Sprintf("%s vs %s", src, dst))
+			switch strategy {
+			case "prefer-target":
+				ops = append(ops, op{kind: "delete-source", from: src})
+			case "prefer-combine":
+				ops = append(ops, op{kind: "replace", from: src, to: dst})
+			}
+		} else {
+			ops = append(ops, op{kind: "rename", from: src, to: dst})
+		}
+	}
+	if len(conflicts) > 0 && strategy == "unique" {
+		return fmt.Errorf("conflicts (use --strategy prefer-target or prefer-combine):\n  %s", strings.Join(conflicts, "\n  "))
+	}
+
+	var toModify []string
+	for _, o := range ops {
+		toModify = append(toModify, o.from)
+		if o.kind == "replace" {
+			toModify = append(toModify, o.to)
+		}
+	}
+	detach, err := branchesPreflight(toModify)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("combine %s/ <- %s/ (strategy: %s):\n", target, source, strategy)
+	for _, o := range ops {
+		switch o.kind {
+		case "rename":
+			fmt.Printf("  %s -> %s\n", o.from, o.to)
+		case "delete-source":
+			fmt.Printf("  %s (delete; target wins)\n", o.from)
+		case "replace":
+			fmt.Printf("  %s -> %s (replaces existing)\n", o.from, o.to)
+		}
+	}
+
+	if !confirm("confirm? [yN] ") {
+		fmt.Println("aborted")
+		return nil
+	}
+
+	if detach != "" {
+		if err := detachHEAD(detach); err != nil {
+			return err
+		}
+	}
+	for _, o := range ops {
+		switch o.kind {
+		case "rename":
+			if err := gitExec("branch", "-m", o.from, o.to); err != nil {
+				return fmt.Errorf("failed to rename %s -> %s: %w", o.from, o.to, err)
+			}
+		case "delete-source":
+			if err := gitExec("branch", "-D", o.from); err != nil {
+				return fmt.Errorf("failed to delete %s: %w", o.from, err)
+			}
+		case "replace":
+			if err := gitExec("branch", "-D", o.to); err != nil {
+				return fmt.Errorf("failed to delete %s: %w", o.to, err)
+			}
+			if err := gitExec("branch", "-m", o.from, o.to); err != nil {
+				return fmt.Errorf("failed to rename %s -> %s: %w", o.from, o.to, err)
+			}
+		}
+	}
+	return nil
+}
+
 func cmdSquash() error {
 	// Bail if working tree or index is dirty
 	if err := exec.Command("git", "diff", "--quiet").Run(); err != nil {
@@ -572,6 +704,7 @@ _git-folder() {
         'delete-upto:delete numbered branches below n'
         'squash:increment and squash commits'
         'rename:rename a folder prefix'
+        'combine:combine source folder into target folder'
         'version:show version'
         'help:show usage'
     )
@@ -586,7 +719,7 @@ _git-folder() {
             ;;
         args)
             case $words[1] in
-                list|delete|delete-upto|increment|rename)
+                list|delete|delete-upto|increment|rename|combine)
                     _git-folder-folders
                     ;;
             esac
