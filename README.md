@@ -118,15 +118,15 @@ go tool task use-brew
 To rebuild the dev version automatically whenever local `main` moves (`git pull`, `git branch -f main`, etc.), install the hook:
 
 ```
-go tool task install-hooks
+go tool task main-hook:install
 ```
 
-It symlinks the hook into the repo's shared hooks dir, so all worktrees get it, and `scripts/` changes take effect without re-installing. The link points into the checkout you ran it from, so run it from the main checkout; it dangles if that checkout is removed or its tree predates `scripts/`.
+This symlinks `./scripts/hooks/reference-transaction` into this repo's `hooks` dir.
 
 To remove it:
 
 ```
-go tool task uninstall-hooks
+go tool task main-hook:uninstall
 ```
 
 `use-brew` automatically removes the hook.
