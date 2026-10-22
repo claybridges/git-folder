@@ -112,6 +112,14 @@ go tool task use-brew
 
 **Note:** The dev version installs to the first of `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin`.
 
+To rebuild the dev version automatically whenever local `main` moves (`git pull`, `git branch -f main`, etc.), install the hook:
+
+```
+go tool task install-hooks
+```
+
+It copies the hook into the repo's shared hooks dir, so all worktrees get it. Re-run it after `scripts/` changes.
+
 ## Colophon
 
 Somewhat vibe-coded with lots of Claude Code, a smidge of Gemini, with _a lot_ of opinionated direction, hand-holding, and questioning. Original `go` port based on [script version](.archive/gitBranchFolder.sh).

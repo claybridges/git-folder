@@ -67,6 +67,11 @@ tasks:
       - echo "✓ Using local version at {{.LOCAL_BIN}}"
       - "{{.LOCAL_BIN}} version"
 
+  install-hooks:
+    desc: Install git hooks (rebuild the dev binary whenever local main moves)
+    cmds:
+      - go run scripts/installHooks.go
+
   use-brew:
     desc: Switch back to Homebrew version
     cmds:
