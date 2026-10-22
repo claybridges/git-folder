@@ -57,6 +57,10 @@ tasks:
 
   use-dev:
     desc: Switch to local dev version
+    summary: |
+      Builds ./cmd/git-folder from this checkout into the dev bin dir and unlinks brew's copy (it stays installed).
+      The dev binary shadows brew's when its dir is ahead of /opt/homebrew/bin on PATH.
+      With the main-hook installed, it is refreshed from main whenever local main moves.
     cmds:
       - |
         if brew list --formula {{.BINARY_NAME}} &>/dev/null; then
@@ -86,6 +90,9 @@ tasks:
 
   use-brew:
     desc: Switch back to Homebrew version
+    summary: |
+      Links brew's copy, then deletes the dev binary so PATH falls through to brew.
+      The main-hook stays installed but skips rebuilds while there is no dev binary.
     cmds:
       - |
         if ! brew list --formula {{.BINARY_NAME}} &>/dev/null; then
