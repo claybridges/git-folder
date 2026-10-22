@@ -1,7 +1,7 @@
 //usr/bin/env go run "$0" "$@"; exit
 //go:build ignore
 
-// Builds main's tree and installs it as the local dev binary. Run detached by hooks/reference-transaction.
+// Builds main's tree and refreshes the local dev binary, if there is one. Run detached by hooks/reference-transaction.
 //
 // Usage: rebuildDevBinary.go [newOid]
 // Env:   gitFolderBinDir       install dir (default: same resolution as the Taskfile's LOCAL_BIN_DIR)
@@ -85,6 +85,12 @@ func build() error {
 		return err
 	}
 	oid = strings.TrimSpace(oid)
+	// Only refresh a dev binary that exists: use-dev creates it, use-brew deletes it, and while it's gone this hook
+	// must not bring it back to shadow brew's copy.
+	if dest := filepath.Join(binDir(), binaryName); os.Getenv("gitFolderSkipInstall") == "" && !exists(dest) {
+		logf("skipped %s: no dev binary at %s (go tool task use-dev creates one)", short(oid), dest)
+		return nil
+	}
 	tmp, err := os.MkdirTemp("", "gitFolderDev")
 	if err != nil {
 		return err

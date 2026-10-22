@@ -131,13 +131,13 @@ go tool task main-hook:install
 
 This symlinks `./scripts/hooks/reference-transaction` into this repo's `hooks` dir.
 
+The hook only refreshes a dev version that exists: `use-dev` creates it and `use-brew` deletes it, so while you're on brew the hook does nothing.
+
 To remove it:
 
 ```
 go tool task main-hook:uninstall
 ```
-
-`use-brew` automatically uninstalls the hook.
 
 ## Colophon
 
