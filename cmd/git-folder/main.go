@@ -304,7 +304,11 @@ func cmdIncrement(args []string) error {
 	}
 	nextBranch := fmt.Sprintf("%s/%d", name, next)
 	fmt.Printf("creating %s\n", nextBranch)
-	return gitExec("checkout", "-b", nextBranch)
+	maxBranch, err := folder.MaxBranch(name)
+	if err != nil {
+		return err
+	}
+	return gitExec("checkout", "-b", nextBranch, maxBranch)
 }
 
 func cmdDelete(args []string) error {
