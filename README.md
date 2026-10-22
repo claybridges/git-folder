@@ -61,6 +61,7 @@ async/2
 async/2.5
 async/3
 async/4
+async/5
 async/bigbooty
 async/temp
 ```
@@ -80,7 +81,7 @@ delete:
   async/2
   async/2.5
   async/3
-confirm? y/N
+confirm? [yN]
 ```
 
 After the PR merges, I can clean up the rest with:
@@ -90,7 +91,7 @@ $ git folder delete async
 
 ## Development Setup
 
-To work on `git folder`, you should install go and go-lint. You can do that with:
+To work on `git folder`, you should install `go`, `golangci-lint`, and `pandoc` (needed by `go tool task man`). You can do that with:
 
 ```
 brew bundle
