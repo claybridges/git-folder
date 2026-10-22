@@ -130,8 +130,6 @@ func main() {
 		err = cmdMax(args[1:])
 	case "delete":
 		err = cmdDelete(args[1:])
-	case "delete-upto":
-		err = cmdDeleteUpto(args[1:])
 	case "squash":
 		err = cmdSquash()
 	case "rename":
@@ -312,7 +310,40 @@ func cmdIncrement(args []string) error {
 }
 
 func cmdDelete(args []string) error {
-	name, err := resolveFolder(args)
+	var beforeSet, beforeHasNumber bool
+	var before float64
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--before" {
+			beforeSet = true
+			if i+1 < len(args) {
+				if n, err := strconv.ParseFloat(args[i+1], 64); err == nil {
+					before = n
+					beforeHasNumber = true
+					i++
+				}
+			}
+		} else {
+			rest = append(rest, args[i])
+		}
+	}
+
+	if beforeSet && !beforeHasNumber {
+		if len(rest) > 0 {
+			return fmt.Errorf("--before requires a number when a folder is given")
+		}
+		cur, err := folder.CurrentBranch()
+		if err != nil {
+			return err
+		}
+		n, ok := folder.NumberFloat(cur)
+		if cur == "" || !ok {
+			return fmt.Errorf("not on a numbered folder branch; pass --before <n>")
+		}
+		before = n
+	}
+
+	name, err := resolveFolder(rest)
 	if err != nil {
 		return err
 	}
@@ -325,66 +356,21 @@ func cmdDelete(args []string) error {
 		return fmt.Errorf("no branches in folder %s/", name)
 	}
 
-	detach, err := branchesPreflight(branches)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("delete all branches in folder %s/:\n", name)
-	for _, b := range branches {
-		fmt.Printf("  %s\n", b)
-	}
-
-	if !confirm("confirm? [yN] ") {
-		fmt.Println("aborted")
-		return nil
-	}
-
-	if detach != "" {
-		if err := detachHEAD(detach); err != nil {
-			return err
+	var toKeep, toDelete []string
+	if beforeSet {
+		for _, b := range branches {
+			num, ok := folder.NumberFloat(b)
+			if ok && num < before {
+				toDelete = append(toDelete, b)
+			} else {
+				toKeep = append(toKeep, b)
+			}
 		}
-	}
-	for _, b := range branches {
-		if err := gitExec("branch", "-D", b); err != nil {
-			return fmt.Errorf("failed to delete %s: %w", b, err)
+		if len(toDelete) == 0 {
+			return fmt.Errorf("no numbered branches below %v in folder %s/", before, name)
 		}
-	}
-	return nil
-}
-
-func cmdDeleteUpto(args []string) error {
-	if len(args) != 2 {
-		return fmt.Errorf("usage: git folder delete-upto <folder> <n>")
-	}
-
-	folderName := args[0]
-	if err := validateFolder(folderName); err != nil {
-		return err
-	}
-	n, err := strconv.ParseFloat(args[1], 64)
-	if err != nil {
-		return fmt.Errorf("invalid number: %s", args[1])
-	}
-
-	branches, err := folder.Enumerate(folderName)
-	if err != nil {
-		return err
-	}
-
-	var toKeep []string
-	var toDelete []string
-	for _, b := range branches {
-		num, ok := folder.NumberFloat(b)
-		if ok && num < n {
-			toDelete = append(toDelete, b)
-		} else {
-			toKeep = append(toKeep, b)
-		}
-	}
-
-	if len(toDelete) == 0 {
-		return fmt.Errorf("no numbered branches below %v in folder %s/", n, folderName)
+	} else {
+		toDelete = branches
 	}
 
 	detach, err := branchesPreflight(toDelete)
@@ -392,14 +378,21 @@ func cmdDeleteUpto(args []string) error {
 		return err
 	}
 
-	fmt.Printf("keep:\n")
-	for _, b := range toKeep {
-		fmt.Printf("  %s\n", b)
-	}
-	fmt.Println()
-	fmt.Printf("delete:\n")
-	for _, b := range toDelete {
-		fmt.Printf("  %s\n", b)
+	if beforeSet {
+		fmt.Printf("keep:\n")
+		for _, b := range toKeep {
+			fmt.Printf("  %s\n", b)
+		}
+		fmt.Println()
+		fmt.Printf("delete:\n")
+		for _, b := range toDelete {
+			fmt.Printf("  %s\n", b)
+		}
+	} else {
+		fmt.Printf("delete all branches in folder %s/:\n", name)
+		for _, b := range toDelete {
+			fmt.Printf("  %s\n", b)
+		}
 	}
 
 	if !confirm("confirm? [yN] ") {
@@ -572,8 +565,7 @@ _git-folder() {
         'list:list branches in a folder'
         'max:print max branch or number'
         'increment:create next numbered branch'
-        'delete:delete all branches in a folder'
-        'delete-upto:delete numbered branches below n'
+        'delete:delete all branches in a folder (use --before [N] to keep N+)'
         'squash:increment and squash commits'
         'rename:rename a folder prefix'
         'version:show version'
@@ -589,8 +581,12 @@ _git-folder() {
             _describe 'command' commands
             ;;
         args)
+            # After --before, expect a numeric threshold; don't suggest folders.
+            if [[ ${words[CURRENT-1]} == "--before" ]]; then
+                return
+            fi
             case $words[1] in
-                list|delete|delete-upto|increment|rename)
+                list|delete|increment|rename)
                     _git-folder-folders
                     ;;
             esac
