@@ -209,6 +209,58 @@ func TestCmdMaxNumber(t *testing.T) {
 	}
 }
 
+func TestCmdMaxNonNumericSuffixes(t *testing.T) {
+	tests := []struct {
+		name       string
+		branches   []string
+		folder     string
+		wantBranch string
+		wantNumber string
+	}{
+		{"inf ignored", []string{"x/1", "x/inf"}, "x", "x/1", "1"},
+		{"exponent ignored", []string{"y/1", "y/1e2"}, "y", "y/1", "1"},
+		{"large float", []string{"w/1234567.5"}, "w", "w/1234567.5", "1234567.5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := initTestRepo(t)
+			inDir(t, dir)
+			for _, b := range tt.branches {
+				run(t, dir, "git", "branch", b)
+			}
+			gotBranch := captureStdout(t, func() {
+				if err := cmdMax([]string{"branch", tt.folder}); err != nil {
+					t.Fatal(err)
+				}
+			})
+			if gotBranch != tt.wantBranch {
+				t.Errorf("max branch: got %q, want %q", gotBranch, tt.wantBranch)
+			}
+			gotNumber := captureStdout(t, func() {
+				if err := cmdMax([]string{"number", tt.folder}); err != nil {
+					t.Fatal(err)
+				}
+			})
+			if gotNumber != tt.wantNumber {
+				t.Errorf("max number: got %q, want %q", gotNumber, tt.wantNumber)
+			}
+		})
+	}
+}
+
+func TestCmdIncrementIgnoresInf(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "x/1")
+	run(t, dir, "git", "branch", "x/inf")
+
+	if err := cmdIncrement([]string{"x"}); err != nil {
+		t.Fatal(err)
+	}
+	assertBranchesExist(t, dir, []string{"x/2"})
+}
+
 func TestCmdMaxEmpty(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)

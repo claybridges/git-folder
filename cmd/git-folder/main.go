@@ -245,11 +245,7 @@ func cmdMax(args []string) error {
 		if err != nil {
 			return err
 		}
-		if n == float64(int(n)) {
-			fmt.Println(int(n))
-		} else {
-			fmt.Println(n)
-		}
+		fmt.Println(strconv.FormatFloat(n, 'f', -1, 64))
 	default:
 		return fmt.Errorf("unknown max subcommand %q; use branch or number", sub)
 	}

@@ -82,6 +82,16 @@ func TestNumberFloat(t *testing.T) {
 		{"foo/2.50", 0, false},
 		{"foo/3.0", 0, false},
 		{"foo/10.10", 0, false},
+		{"foo/inf", 0, false},
+		{"foo/Inf", 0, false},
+		{"foo/NaN", 0, false},
+		{"foo/1e2", 0, false},
+		{"foo/0x10", 0, false},
+		{"foo/+1", 0, false},
+		{"foo/1_0", 0, false},
+		{"foo/2", 2, true},
+		{"foo/1234567.5", 1234567.5, true},
+		{"foo/02", 2, true},
 	}
 	for _, tt := range tests {
 		got, ok := NumberFloat(tt.input)
@@ -211,6 +221,35 @@ func TestLastNumberIntAndFloat(t *testing.T) {
 	}
 	if last != 3 {
 		t.Errorf("got %v, want 3", last)
+	}
+}
+
+func TestMaxBranch(t *testing.T) {
+	tests := []struct {
+		name     string
+		branches []string
+		want     string
+	}{
+		{"inf ignored", []string{"x/1", "x/inf"}, "x/1"},
+		{"exponent ignored", []string{"y/1", "y/1e2"}, "y/1"},
+		{"large float keeps name", []string{"w/1234567.5"}, "w/1234567.5"},
+		{"leading zero keeps name", []string{"z/02"}, "z/02"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := initTestRepo(t)
+			inDir(t, dir)
+			for _, b := range tt.branches {
+				run(t, dir, "git", "branch", b)
+			}
+			got, err := MaxBranch(Name(tt.branches[0]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

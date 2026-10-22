@@ -30,16 +30,19 @@ func Number(branch string) int {
 	return n
 }
 
+var numericSuffix = regexp.MustCompile(`^\d+(\.\d*[1-9])?$`)
+
 // NumberFloat extracts a numeric suffix (int or float) from a branch.
-// Returns the number and true if parseable, or 0 and false otherwise.
-// Rejects trailing zeros (e.g. "2.50", "3.0") to ensure unique representations.
+// Returns the number and true if the suffix is a plain decimal, or 0 and false otherwise.
+// Only `^\d+(\.\d*[1-9])?$` counts: no signs, exponents, hex, "inf", or trailing zeros (e.g. "2.50", "3.0"),
+// which keeps each number's representation unique.
 func NumberFloat(branch string) (float64, bool) {
 	rhs := branch[strings.Index(branch, "/")+1:]
-	if strings.Contains(rhs, ".") && strings.HasSuffix(rhs, "0") {
+	if !numericSuffix.MatchString(rhs) {
 		return 0, false
 	}
 	n, err := strconv.ParseFloat(rhs, 64)
-	if err != nil || n < 0 {
+	if err != nil {
 		return 0, false
 	}
 	return n, true
@@ -57,39 +60,39 @@ func Enumerate(folder string) ([]string, error) {
 	return strings.Split(out, "\n"), nil
 }
 
-// LastNumber finds the highest numbered branch in a folder (includes floats).
-func LastNumber(folder string) (float64, error) {
+// maxNumbered finds the highest numbered branch in a folder (includes floats), returning its name and number.
+func maxNumbered(folder string) (string, float64, error) {
 	branches, err := Enumerate(folder)
 	if err != nil {
-		return -1, err
+		return "", -1, err
 	}
 
+	best := ""
 	max := -1.0
-	found := false
 	for _, b := range branches {
 		n, ok := NumberFloat(b)
 		if ok && n > max {
 			max = n
-			found = true
+			best = b
 		}
 	}
 
-	if !found {
-		return -1, fmt.Errorf("no numbered branches in folder %s/", folder)
+	if best == "" {
+		return "", -1, fmt.Errorf("no numbered branches in folder %s/", folder)
 	}
-	return max, nil
+	return best, max, nil
 }
 
-// MaxBranch returns the full branch name of the max branch in a folder (e.g. "async/4").
+// LastNumber finds the highest numbered branch in a folder (includes floats).
+func LastNumber(folder string) (float64, error) {
+	_, n, err := maxNumbered(folder)
+	return n, err
+}
+
+// MaxBranch returns the full branch name of the max branch in a folder (e.g. "async/4"), as it exists.
 func MaxBranch(folderName string) (string, error) {
-	n, err := LastNumber(folderName)
-	if err != nil {
-		return "", err
-	}
-	if n == float64(int(n)) {
-		return fmt.Sprintf("%s/%d", folderName, int(n)), nil
-	}
-	return fmt.Sprintf("%s/%g", folderName, n), nil
+	b, _, err := maxNumbered(folderName)
+	return b, err
 }
 
 // CurrentBranch returns the name of the currently checked-out branch, or "" if detached.
