@@ -78,8 +78,9 @@ tasks:
       - go run scripts/installHooks.go --uninstall
 
   use-brew:
-    desc: Switch back to Homebrew version
+    desc: Switch back to Homebrew version (also removes the rebuild hook)
     cmds:
+      - go run scripts/installHooks.go --uninstall
       - rm -f "{{.LOCAL_BIN}}"
       - |
         if ! brew list --formula {{.BINARY_NAME}} &>/dev/null; then
