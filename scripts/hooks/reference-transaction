@@ -1,0 +1,12 @@
+#!/usr/bin/env zsh
+# Rebuild the dev binary when local main moves. Logic lives in scripts/rebuildDevBinary.go; this only filters and
+# launches it detached, and always exits 0 so a ref update is never blocked. Installed as a symlink, so locate the
+# script from the resolved path.
+[[ $1 == committed ]] || exit 0
+while read -r old new ref; do
+    if [[ $ref == refs/heads/main ]]; then
+        nohup ${0:A:h}/../rebuildDevBinary.go $new >/dev/null 2>&1 &
+        break
+    fi
+done
+exit 0

@@ -67,9 +67,20 @@ tasks:
       - echo "✓ Using local version at {{.LOCAL_BIN}}"
       - "{{.LOCAL_BIN}} version"
 
-  use-brew:
-    desc: Switch back to Homebrew version
+  main-hook:install:
+    desc: Install git hook (rebuild the dev binary whenever local main moves)
     cmds:
+      - go run scripts/installHooks.go
+
+  main-hook:uninstall:
+    desc: Remove the git hook installed by main-hook:install
+    cmds:
+      - go run scripts/installHooks.go --uninstall
+
+  use-brew:
+    desc: Switch back to Homebrew version (also removes the rebuild hook)
+    cmds:
+      - task: main-hook:uninstall
       - rm -f "{{.LOCAL_BIN}}"
       - |
         if ! brew list --formula {{.BINARY_NAME}} &>/dev/null; then

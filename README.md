@@ -110,7 +110,26 @@ go tool task use-dev
 go tool task use-brew
 ```
 
-**Note:** The dev version installs to the first of `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin`.
+> [!NOTE]
+> The dev version installs to the first of `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin`. 
+
+### Git hook for `main`
+
+To rebuild the dev version automatically whenever local `main` moves (`git pull`, `git branch -f main`, etc.), install the hook:
+
+```
+go tool task main-hook:install
+```
+
+This symlinks `./scripts/hooks/reference-transaction` into this repo's `hooks` dir.
+
+To remove it:
+
+```
+go tool task main-hook:uninstall
+```
+
+`use-brew` automatically uninstalls the hook.
 
 ## Colophon
 
