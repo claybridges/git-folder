@@ -14,6 +14,8 @@ git folder increment [<folder>]
 git folder squash
 git folder delete [--force] [--before [<n>]] [<folder>...]
 git folder rename [--force] <old> <new>
+git folder lock [--list | <folder>]
+git folder unlock [<folder>]
 git folder max [branch|number] [<folder>]
 ```
 
@@ -47,14 +49,30 @@ git folder max [branch|number] [<folder>]
     no branches nothing is deleted. With **--before** *\<n\>*, delete only numeric
     branches with suffix less than *n*; non-numeric branches (e.g.
     `async/temp`) are preserved. Prompts for confirmation unless `--force`
-    is set.
+    is set. Refuses locked folders; see **lock**.
     A bare **--before** takes both the folder and *n* from the current
     branch, which must be numbered; it is an error to name a folder without
     a number. **--before** takes a single folder.
 
 **rename** *\<old\>* *\<new\>*
 :   Rename all branches from prefix *old* to *new*. Prompts for confirmation
-    unless `--force` is set.
+    unless `--force` is set. Refuses if *old* or *new* is locked; see **lock**.
+
+**lock** [**--list** | *\<folder\>*]
+:   Lock the folder so that **delete** and **rename** refuse to touch it,
+    for folders meant to be semi-permanent. If *folder* is omitted, infers
+    from the current branch. Errors if the folder has no branches. Locking
+    a locked folder does nothing. The lock is stored in the repository's git
+    config as a value of the multi-valued key `folder.locked`. **--force**
+    does not override a lock, and a raw `git branch -D` is not prevented.
+    Locked folders can still be incremented, squashed and rebased.
+    **lock --list** prints the locked folder names, one per line, and takes
+    no folder.
+
+**unlock** *[folder]*
+:   Remove the folder's lock. If *folder* is omitted, infers from the
+    current branch. Does not require the folder to have branches, so a
+    leftover lock can be cleared. Unlocking an unlocked folder does nothing.
 
 # LOW-LEVEL COMMANDS (PLUMBING)
 
