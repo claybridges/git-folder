@@ -89,6 +89,22 @@ After the PR merges, I can clean up the rest with:
 $ git folder delete async
 ```
 
+## Agents and worktrees
+
+Agents rewrite history: rebase, squash, replay. That's fine until one eats a commit you needed. Numbered branches make it harmless. `git folder increment` first, point the rewrite at the new N, and the original stays put.
+
+Three things that actually happened:
+
+- `git replay --onto main base..widget/2` rewrites the named ref in place, no checkout. The original `widget/2` was gone until I reset it from the log. Now: `git folder increment`, then replay `widget/3`.
+- A sweep incremented and rebased seven branches onto main (`parser/5` → `parser/6`, and so on). One, `mic/3`, hit a conflict, so `mic/4` stayed at the old tip and `mic/3` was never touched. Nothing half-rewritten.
+- An agent's rebase died partway and left its worktree half checked out on `blank/3`. `blank/2` still held the verified commit. `git restore .`, redo the rebase.
+
+One worktree and one folder per agent (`login/1`, `search/1`), landing fast-forward only. Along the way:
+
+- `delete` and `rename` refuse branches checked out in any worktree
+- `increment <folder>` branches from the folder's max branch, so an agent can start from the right place anywhere
+- when the PRs land, `git folder delete login search` cleans up both folders at once
+
 ## Development Setup
 
 To work on `git folder`, you should install `go`, `golangci-lint`, and `pandoc` (needed by `go tool task man`). You can do that with:
