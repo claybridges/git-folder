@@ -679,6 +679,7 @@ func cmdCompletion() {
 
 # Place in your fpath or run:
 #   git-folder completion > ~/.zsh/completions/_git-folder
+# Serves both "git-folder <TAB>" and "git folder <TAB>" (zsh's _git finds _git-folder via fpath).
 
 _git-folder() {
     local -a commands
@@ -691,35 +692,73 @@ _git-folder() {
         'rename:rename a folder prefix'
         'lock:protect a folder from delete and rename'
         'unlock:remove a folder lock'
+        'completion:print the zsh completion script'
         'version:show version'
         'help:show usage'
     )
 
-    _arguments -C \
-        '1:command:->cmd' \
-        '*::arg:->args'
+    # Normalize so words[1] is the program and words[2] the subcommand. Invoked from _git (service is "git"), words
+    # already starts at "folder" (_git shifts out "git"), so only the program name differs.
+    local -a w
+    local cur=$CURRENT
+    w=("${words[@]}")
+    [[ $service == git ]] && w[1]=git-folder
 
-    case $state in
-        cmd)
-            _describe 'command' commands
-            ;;
-        args)
-            # After --before, expect a numeric threshold; don't suggest folders.
-            if [[ ${words[CURRENT-1]} == "--before" ]]; then
-                return
+    if (( cur <= 2 )); then
+        _describe 'command' commands
+        return
+    fi
+
+    local cmd=$w[2] prev=$w[cur-1] arg
+    local -a pos
+    local sawList=0
+    local i
+    for (( i = 3; i < cur; i++ )); do
+        arg=$w[i]
+        case $arg in
+            -*) [[ $arg == --list ]] && sawList=1 ;;
+            *[!0-9.]*|'') pos+=($arg) ;;
+            *) [[ $w[i-1] == --before ]] || pos+=($arg) ;;
+        esac
+    done
+
+    # A numeric threshold is expected right after --before; don't suggest folders.
+    [[ $prev == --before ]] && return
+
+    if [[ $PREFIX == -* ]]; then
+        case $cmd in
+            delete) compadd -- -f --force --before ;;
+            rename) compadd -- -f --force ;;
+            lock) compadd -- --list ;;
+        esac
+        return
+    fi
+
+    case $cmd in
+        max)
+            if (( ${#pos} == 0 )); then
+                compadd -- branch number
+                _git-folder-folders
+            elif (( ${#pos} == 1 )) && [[ $pos[1] == (branch|number) ]]; then
+                _git-folder-folders
             fi
-            case $words[1] in
-                list|delete|increment|rename)
-                    _git-folder-folders
-                    ;;
-                lock)
-                    compadd -- --list
-                    _git-folder-folders
-                    ;;
-                unlock)
-                    _git-folder-locked
-                    ;;
-            esac
+            ;;
+        list|increment)
+            (( ${#pos} == 0 )) && _git-folder-folders
+            ;;
+        delete)
+            _git-folder-folders
+            ;;
+        rename)
+            (( ${#pos} == 0 )) && _git-folder-folders
+            ;;
+        lock)
+            (( sawList )) && return
+            compadd -- --list
+            _git-folder-folders
+            ;;
+        unlock)
+            _git-folder-locked
             ;;
     esac
 }
@@ -741,7 +780,6 @@ _git-folder-locked() {
     [[ ${#locked} -gt 0 ]] && compadd -- "${locked[@]}"
 }
 
-# Also hook into 'git folder' as a git subcommand
 _git-folder "$@"
 `)
 }
