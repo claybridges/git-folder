@@ -14,7 +14,7 @@ git folder increment [<folder>]
 git folder squash
 git folder delete [--force] [--before [<n>]] [<folder>...]
 git folder rename [--force] <old> <new>
-git folder lock [<folder>]
+git folder lock [--list | <folder>]
 git folder unlock [<folder>]
 git folder max [branch|number] [<folder>]
 ```
@@ -58,7 +58,7 @@ git folder max [branch|number] [<folder>]
 :   Rename all branches from prefix *old* to *new*. Prompts for confirmation
     unless `--force` is set. Refuses if *old* or *new* is locked; see **lock**.
 
-**lock** *[folder]*
+**lock** [**--list** | *\<folder\>*]
 :   Lock the folder so that **delete** and **rename** refuse to touch it,
     for folders meant to be semi-permanent. If *folder* is omitted, infers
     from the current branch. Errors if the folder has no branches. Locking
@@ -66,6 +66,8 @@ git folder max [branch|number] [<folder>]
     config as a value of the multi-valued key `folder.locked`. **--force**
     does not override a lock, and a raw `git branch -D` is not prevented.
     Locked folders can still be incremented, squashed and rebased.
+    **lock --list** prints the locked folder names, one per line, and takes
+    no folder.
 
 **unlock** *[folder]*
 :   Remove the folder's lock. If *folder* is omitted, infers from the

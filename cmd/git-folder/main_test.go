@@ -1667,3 +1667,66 @@ func TestLockedFolderStillIncrementsAndSquashes(t *testing.T) {
 	}
 	assertBranchesExist(t, dir, withFolder("async", "1", "2", "3"))
 }
+
+func lockList(t *testing.T) string {
+	t.Helper()
+	return captureStdout(t, func() {
+		if err := cmdLock([]string{"--list"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestLockListNoneLocked(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	if out := lockList(t); out != "" {
+		t.Errorf("expected no output, got %q", out)
+	}
+}
+
+func TestLockListInOrder(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "zzz/1")
+	run(t, dir, "git", "branch", "aaa/1")
+
+	for _, n := range []string{"zzz", "aaa"} {
+		if err := cmdLock([]string{n}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out := lockList(t); out != "zzz\naaa" {
+		t.Errorf("list = %q, want zzz then aaa", out)
+	}
+}
+
+func TestLockListWithFolderErrors(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	err := cmdLock([]string{"--list", "async"})
+	if err == nil || !strings.Contains(err.Error(), "--list takes no folder") {
+		t.Fatalf("expected --list error, got %v", err)
+	}
+}
+
+func TestLockListAfterUnlock(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "aaa/1")
+	run(t, dir, "git", "branch", "bbb/1")
+
+	for _, n := range []string{"aaa", "bbb"} {
+		if err := cmdLock([]string{n}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := cmdUnlock([]string{"aaa"}); err != nil {
+		t.Fatal(err)
+	}
+	if out := lockList(t); out != "bbb" {
+		t.Errorf("list = %q, want bbb", out)
+	}
+}

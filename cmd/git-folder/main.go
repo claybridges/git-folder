@@ -541,6 +541,19 @@ func refuseLocked(names ...string) error {
 }
 
 func cmdLock(args []string) error {
+	if len(args) > 0 && args[0] == "--list" {
+		if len(args) > 1 {
+			return fmt.Errorf("--list takes no folder")
+		}
+		locked, err := folder.LockedFolders()
+		if err != nil {
+			return err
+		}
+		for _, n := range locked {
+			fmt.Println(n)
+		}
+		return nil
+	}
 	name, err := resolveFolder(args)
 	if err != nil {
 		return err
@@ -696,7 +709,11 @@ _git-folder() {
                 return
             fi
             case $words[1] in
-                list|delete|increment|rename|lock)
+                list|delete|increment|rename)
+                    _git-folder-folders
+                    ;;
+                lock)
+                    compadd -- --list
                     _git-folder-folders
                     ;;
                 unlock)

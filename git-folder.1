@@ -11,7 +11,7 @@ git folder increment [<folder>]
 git folder squash
 git folder delete [\-\-force] [\-\-before [<n>]] [<folder>...]
 git folder rename [\-\-force] <old> <new>
-git folder lock [<folder>]
+git folder lock [\-\-list | <folder>]
 git folder unlock [<folder>]
 git folder max [branch|number] [<folder>]
 .EE
@@ -60,7 +60,7 @@ Rename all branches from prefix \f[I]old\f[R] to \f[I]new\f[R].
 Prompts for confirmation unless \f[CR]\-\-force\f[R] is set.
 Refuses if \f[I]old\f[R] or \f[I]new\f[R] is locked; see \f[B]lock\f[R].
 .TP
-\f[B]lock\f[R] \f[I][folder]\f[R]
+\f[B]lock\f[R] [\f[B]\(enlist\f[R] | \f[I]<folder>\f[R]]
 Lock the folder so that \f[B]delete\f[R] and \f[B]rename\f[R] refuse to
 touch it, for folders meant to be semi\-permanent.
 If \f[I]folder\f[R] is omitted, infers from the current branch.
@@ -71,6 +71,8 @@ multi\-valued key \f[CR]folder.locked\f[R].
 \f[B]\(enforce\f[R] does not override a lock, and a raw
 \f[CR]git branch \-D\f[R] is not prevented.
 Locked folders can still be incremented, squashed and rebased.
+\f[B]lock \(enlist\f[R] prints the locked folder names, one per line,
+and takes no folder.
 .TP
 \f[B]unlock\f[R] \f[I][folder]\f[R]
 Remove the folder\(cqs lock.
