@@ -110,7 +110,10 @@ go tool task use-dev
 go tool task use-brew
 ```
 
-**Note:** The dev version installs to the first of `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin`. `use-brew` also removes the rebuild hook below, so a later `main` update doesn't rebuild the dev binary back in.
+> [!NOTE]
+> The dev version installs to the first of `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin`. 
+
+### Git hook for `main`
 
 To rebuild the dev version automatically whenever local `main` moves (`git pull`, `git branch -f main`, etc.), install the hook:
 
@@ -125,6 +128,8 @@ To remove it:
 ```
 go tool task uninstall-hooks
 ```
+
+`use-brew` automatically removes the hook.
 
 ## Colophon
 
