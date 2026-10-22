@@ -424,6 +424,144 @@ func TestCmdDeleteEmpty(t *testing.T) {
 	}
 }
 
+func TestCmdDeleteMultipleFolders(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "one/1")
+	run(t, dir, "git", "branch", "one/2")
+	run(t, dir, "git", "branch", "two/1")
+	run(t, dir, "git", "branch", "three/1")
+
+	withStdin(t, "y\n")
+
+	if err := cmdDelete([]string{"one", "two"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if branches := branchList(t, dir, "one/*"); len(branches) != 0 {
+		t.Errorf("one/ not deleted: %v", branches)
+	}
+	if branches := branchList(t, dir, "two/*"); len(branches) != 0 {
+		t.Errorf("two/ not deleted: %v", branches)
+	}
+	if branches := branchList(t, dir, "three/*"); len(branches) != 1 {
+		t.Errorf("three/ should be untouched: %v", branches)
+	}
+}
+
+func TestCmdDeleteDuplicateFolders(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "dup/1")
+
+	withStdin(t, "y\n")
+
+	if err := cmdDelete([]string{"dup", "dup"}); err != nil {
+		t.Fatal(err)
+	}
+	if branches := branchList(t, dir, "dup/*"); len(branches) != 0 {
+		t.Errorf("dup/ not deleted: %v", branches)
+	}
+}
+
+func TestCmdDeleteMultipleOneEmpty(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "full/1")
+
+	withStdin(t, "y\n")
+
+	err := cmdDelete([]string{"full", "nothing"})
+	if err == nil {
+		t.Fatal("expected error for empty folder")
+	}
+	if !strings.Contains(err.Error(), "nothing/") {
+		t.Errorf("error should name the empty folder, got: %v", err)
+	}
+	if branches := branchList(t, dir, "full/*"); len(branches) != 1 {
+		t.Errorf("full/ should be untouched: %v", branches)
+	}
+}
+
+func TestCmdDeleteMultipleAbort(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "a/1")
+	run(t, dir, "git", "branch", "b/1")
+
+	withStdin(t, "n\n")
+
+	if err := cmdDelete([]string{"a", "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if branches := branchList(t, dir, "a/*"); len(branches) != 1 {
+		t.Errorf("a/ should be kept: %v", branches)
+	}
+	if branches := branchList(t, dir, "b/*"); len(branches) != 1 {
+		t.Errorf("b/ should be kept: %v", branches)
+	}
+}
+
+func TestCmdDeleteBeforeMultipleFolders(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "a/1")
+	run(t, dir, "git", "branch", "b/1")
+
+	err := cmdDelete([]string{"--before", "2", "a", "b"})
+	if err == nil {
+		t.Fatal("expected error for --before with two folders")
+	}
+	if !strings.Contains(err.Error(), "--before takes only a single folder") {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if branches := branchList(t, dir, "a/*"); len(branches) != 1 {
+		t.Errorf("a/ should be untouched: %v", branches)
+	}
+}
+
+func TestCmdDeleteMultipleCheckedOutInSecond(t *testing.T) {
+	t.Run("without force - should error", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "branch", "a/1")
+		run(t, dir, "git", "checkout", "-b", "b/1")
+
+		forceFlag = false
+		err := cmdDelete([]string{"a", "b"})
+		if err == nil || !strings.Contains(err.Error(), "currently checked out") {
+			t.Fatalf("expected 'currently checked out' error, got: %v", err)
+		}
+		if branches := branchList(t, dir, "a/*"); len(branches) != 1 {
+			t.Errorf("a/ should be untouched: %v", branches)
+		}
+	})
+
+	t.Run("with force - should detach and delete both", func(t *testing.T) {
+		dir := initTestRepo(t)
+		inDir(t, dir)
+		run(t, dir, "git", "branch", "a/1")
+		run(t, dir, "git", "checkout", "-b", "b/1")
+
+		forceFlag = true
+		defer func() { forceFlag = false }()
+		if err := cmdDelete([]string{"a", "b"}); err != nil {
+			t.Fatalf("unexpected error with --force: %v", err)
+		}
+		if branches := branchList(t, dir, "a/*"); len(branches) != 0 {
+			t.Errorf("a/ not deleted: %v", branches)
+		}
+		if branches := branchList(t, dir, "b/*"); len(branches) != 0 {
+			t.Errorf("b/ not deleted: %v", branches)
+		}
+	})
+}
+
 func TestCmdDeleteBadArgs(t *testing.T) {
 	inNonRepo(t)
 	if err := cmdDelete(nil); err == nil {

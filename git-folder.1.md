@@ -12,7 +12,7 @@ git-folder - manage groups of git branches as folders
 git folder list <folder>
 git folder increment [<folder>]
 git folder squash
-git folder delete [--force] [--before [<n>]] [<folder>]
+git folder delete [--force] [--before [<n>]] [<folder>...]
 git folder rename [--force] <old> <new>
 git folder max [branch|number] [<folder>]
 ```
@@ -40,15 +40,17 @@ git folder max [branch|number] [<folder>]
     automatically. Errors if the current branch is not a folder branch or not
     the max branch.
 
-**delete** [**--force**] [**--before** [*\<n\>*]] *[\<folder\>]*
+**delete** [**--force**] [**--before** [*\<n\>*]] *[\<folder\>...]*
 :   Delete all branches in the folder. If *folder* is omitted, infers from
-    the current branch. With **--before** *\<n\>*, delete only numeric
+    the current branch. Several folders may be named; they are previewed
+    together and deleted after a single confirmation, and if any of them has
+    no branches nothing is deleted. With **--before** *\<n\>*, delete only numeric
     branches with suffix less than *n*; non-numeric branches (e.g.
     `async/temp`) are preserved. Prompts for confirmation unless `--force`
     is set.
     A bare **--before** takes both the folder and *n* from the current
     branch, which must be numbered; it is an error to name a folder without
-    a number.
+    a number. **--before** takes a single folder.
 
 **rename** *\<old\>* *\<new\>*
 :   Rename all branches from prefix *old* to *new*. Prompts for confirmation
