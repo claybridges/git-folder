@@ -25,6 +25,8 @@ See `git-folder.1.md` — full porcelain/plumbing docs, including `--force` sema
 
 Run all CI checks: `go tool task ci`
 
+Skip local CI runs for anything that becomes a PR; GitHub runs them.
+
 ## Commits
 
 One-line subject only; no body, no `Co-Authored-By` trailer.
