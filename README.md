@@ -11,6 +11,8 @@ A git subcommand for creating and managing folders of related branches, with an 
 
 Squashing, merging, and rebasing destroy context. That's usually fine — until it isn't. Developers already work around this with ad hoc branches — `save3`, `omg-works-here`, `dontDeleteYet`. Giving this structure as a numbered branch sequence preserves your iterative context — a branch time machine for experimentation.
 
+This is especially useful when working with LLM agents, pairing folder branches with a dedicated git worktree of the same name.
+
 ## Install
 
 ### Homebrew (macOS)
