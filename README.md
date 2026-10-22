@@ -129,7 +129,7 @@ To remove it:
 go tool task main-hook:uninstall
 ```
 
-`use-brew` automatically removes the hook.
+`use-brew` automatically uninstalls the hook.
 
 ## Colophon
 
