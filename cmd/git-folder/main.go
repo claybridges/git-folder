@@ -328,6 +328,10 @@ func cmdDelete(args []string) error {
 		}
 	}
 
+	if beforeSet && len(rest) > 1 {
+		return fmt.Errorf("--before takes a single folder")
+	}
+
 	if beforeSet && !beforeHasNumber {
 		if len(rest) > 0 {
 			return fmt.Errorf("--before requires a number when a folder is given")
@@ -343,22 +347,43 @@ func cmdDelete(args []string) error {
 		before = n
 	}
 
-	name, err := resolveFolder(rest)
-	if err != nil {
-		return err
+	var names []string
+	if len(rest) == 0 {
+		name, err := resolveFolder(nil)
+		if err != nil {
+			return err
+		}
+		names = []string{name}
+	} else {
+		seen := map[string]bool{}
+		for _, n := range rest {
+			if err := validateFolder(n); err != nil {
+				return err
+			}
+			if !seen[n] {
+				seen[n] = true
+				names = append(names, n)
+			}
+		}
 	}
 
-	branches, err := folder.Enumerate(name)
-	if err != nil {
-		return err
-	}
-	if len(branches) == 0 {
-		return fmt.Errorf("no branches in folder %s/", name)
+	// Enumerate every folder before any side effect; one empty folder fails the whole command.
+	folderBranches := make([][]string, len(names))
+	for i, name := range names {
+		branches, err := folder.Enumerate(name)
+		if err != nil {
+			return err
+		}
+		if len(branches) == 0 {
+			return fmt.Errorf("no branches in folder %s/", name)
+		}
+		folderBranches[i] = branches
 	}
 
 	var toKeep, toDelete []string
 	if beforeSet {
-		for _, b := range branches {
+		name := names[0]
+		for _, b := range folderBranches[0] {
 			num, ok := folder.NumberFloat(b)
 			if ok && num < before {
 				toDelete = append(toDelete, b)
@@ -370,7 +395,9 @@ func cmdDelete(args []string) error {
 			return fmt.Errorf("no numbered branches below %v in folder %s/", before, name)
 		}
 	} else {
-		toDelete = branches
+		for _, branches := range folderBranches {
+			toDelete = append(toDelete, branches...)
+		}
 	}
 
 	detach, err := branchesPreflight(toDelete)
@@ -389,9 +416,11 @@ func cmdDelete(args []string) error {
 			fmt.Printf("  %s\n", b)
 		}
 	} else {
-		fmt.Printf("delete all branches in folder %s/:\n", name)
-		for _, b := range toDelete {
-			fmt.Printf("  %s\n", b)
+		for i, name := range names {
+			fmt.Printf("delete all branches in folder %s/:\n", name)
+			for _, b := range folderBranches[i] {
+				fmt.Printf("  %s\n", b)
+			}
 		}
 	}
 

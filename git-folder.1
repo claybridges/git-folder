@@ -9,7 +9,7 @@ git\-folder \- manage groups of git branches as folders
 git folder list <folder>
 git folder increment [<folder>]
 git folder squash
-git folder delete [\-\-force] [\-\-before [<n>]] [<folder>]
+git folder delete [\-\-force] [\-\-before [<n>]] [<folder>...]
 git folder rename [\-\-force] <old> <new>
 git folder max [branch|number] [<folder>]
 .EE
@@ -37,9 +37,12 @@ Detects the trunk branch automatically.
 Errors if the current branch is not a folder branch or not the max
 branch.
 .TP
-\f[B]delete\f[R] [\f[B]\(enforce\f[R]] [\f[B]\(enbefore\f[R] [\f[I]<n>\f[R]]] \f[I][<folder>]\f[R]
+\f[B]delete\f[R] [\f[B]\(enforce\f[R]] [\f[B]\(enbefore\f[R] [\f[I]<n>\f[R]]] \f[I][<folder>\&...]\f[R]
 Delete all branches in the folder.
 If \f[I]folder\f[R] is omitted, infers from the current branch.
+Several folders may be named; they are previewed together and deleted
+after a single confirmation, and if any of them has no branches nothing
+is deleted.
 With \f[B]\(enbefore\f[R] \f[I]<n>\f[R], delete only numeric branches
 with suffix less than \f[I]n\f[R]; non\-numeric branches (e.g.
 \f[CR]async/temp\f[R]) are preserved.
@@ -47,6 +50,7 @@ Prompts for confirmation unless \f[CR]\-\-force\f[R] is set.
 A bare \f[B]\(enbefore\f[R] takes both the folder and \f[I]n\f[R] from
 the current branch, which must be numbered; it is an error to name a
 folder without a number.
+\f[B]\(enbefore\f[R] takes a single folder.
 .TP
 \f[B]rename\f[R] \f[I]<old>\f[R] \f[I]<new>\f[R]
 Rename all branches from prefix \f[I]old\f[R] to \f[I]new\f[R].
