@@ -260,6 +260,29 @@ func TestCmdIncrementExplicit(t *testing.T) {
 	}
 }
 
+func TestCmdIncrementExplicitBranchesFromMax(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "checkout", "-b", "topic/1")
+	run(t, dir, "git", "commit", "--allow-empty", "-m", "extra")
+	run(t, dir, "git", "checkout", "main")
+
+	if err := cmdIncrement([]string{"topic"}); err != nil {
+		t.Fatal(err)
+	}
+
+	topic1 := strings.TrimSpace(run(t, dir, "git", "rev-parse", "topic/1"))
+	topic2 := strings.TrimSpace(run(t, dir, "git", "rev-parse", "topic/2"))
+	mainSha := strings.TrimSpace(run(t, dir, "git", "rev-parse", "main"))
+	if topic2 != topic1 {
+		t.Errorf("topic/2 = %s, want topic/1 = %s", topic2, topic1)
+	}
+	if topic2 == mainSha {
+		t.Errorf("topic/2 branched from main (%s)", mainSha)
+	}
+}
+
 func TestCmdIncrementExplicitFloat(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
