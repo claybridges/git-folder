@@ -441,19 +441,19 @@ func initAsyncRepo(t *testing.T) string {
 	return dir
 }
 
-// --- cmdDelete --upto ---
+// --- cmdDelete --before ---
 
-func TestCmdDeleteUptoReadmeExample(t *testing.T) {
+func TestCmdDeleteBeforeReadmeExample(t *testing.T) {
 	dir := initAsyncRepo(t)
 
 	deleted := withFolder("async", "1", "2", "2.5", "3")
 	assertBranchesExist(t, dir, deleted)
 
-	cmd := exec.Command(binaryPath, "delete", "--upto", "4", "async")
+	cmd := exec.Command(binaryPath, "delete", "--before", "4", "async")
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader("y\n")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("delete --upto failed: %v\n%s", err, out)
+		t.Fatalf("delete --before failed: %v\n%s", err, out)
 	}
 
 	kept := branchList(t, dir, "async/*")
@@ -464,7 +464,7 @@ func TestCmdDeleteUptoReadmeExample(t *testing.T) {
 	}
 }
 
-func TestCmdDeleteUptoConfirm(t *testing.T) {
+func TestCmdDeleteBeforeConfirm(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
 
@@ -477,7 +477,7 @@ func TestCmdDeleteUptoConfirm(t *testing.T) {
 
 	withStdin(t, "y\n")
 
-	err := cmdDelete([]string{"--upto", "3", "x"})
+	err := cmdDelete([]string{"--before", "3", "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -495,7 +495,7 @@ func TestCmdDeleteUptoConfirm(t *testing.T) {
 	}
 }
 
-func TestCmdDeleteUptoFloatThreshold(t *testing.T) {
+func TestCmdDeleteBeforeFloatThreshold(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
 
@@ -507,7 +507,7 @@ func TestCmdDeleteUptoFloatThreshold(t *testing.T) {
 
 	withStdin(t, "y\n")
 
-	err := cmdDelete([]string{"--upto", "2.5", "x"})
+	err := cmdDelete([]string{"--before", "2.5", "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +524,7 @@ func TestCmdDeleteUptoFloatThreshold(t *testing.T) {
 	}
 }
 
-func TestCmdDeleteUptoAbort(t *testing.T) {
+func TestCmdDeleteBeforeAbort(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
 
@@ -533,7 +533,7 @@ func TestCmdDeleteUptoAbort(t *testing.T) {
 
 	withStdin(t, "n\n")
 
-	err := cmdDelete([]string{"--upto", "2", "y"})
+	err := cmdDelete([]string{"--before", "2", "y"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,31 +544,112 @@ func TestCmdDeleteUptoAbort(t *testing.T) {
 	}
 }
 
-func TestCmdDeleteUptoNoneBelow(t *testing.T) {
+func TestCmdDeleteBeforeNoneBelow(t *testing.T) {
 	dir := initTestRepo(t)
 	inDir(t, dir)
 
 	run(t, dir, "git", "branch", "z/5")
 
-	err := cmdDelete([]string{"--upto", "1", "z"})
+	err := cmdDelete([]string{"--before", "1", "z"})
 	if err == nil {
 		t.Fatal("expected error when no branches below n")
 	}
 }
 
-func TestCmdDeleteUptoBadArgs(t *testing.T) {
-	if err := cmdDelete([]string{"--upto"}); err == nil {
-		t.Fatal("expected error for missing upto value")
+func TestCmdDeleteBeforeBadArgs(t *testing.T) {
+	inNonRepo(t)
+	if err := cmdDelete([]string{"--before"}); err == nil {
+		t.Fatal("expected error for bare --before outside a repo")
 	}
-	if err := cmdDelete([]string{"--upto", "notanumber", "a"}); err == nil {
-		t.Fatal("expected error for non-numeric upto")
+	if err := cmdDelete([]string{"--before", "notanumber", "a"}); err == nil {
+		t.Fatal("expected error for folder without a number")
 	}
 }
 
-func TestCmdDeleteUptoNotARepo(t *testing.T) {
+func TestCmdDeleteBeforeNotARepo(t *testing.T) {
 	inNonRepo(t)
-	if err := cmdDelete([]string{"--upto", "3", "foo"}); err == nil {
+	if err := cmdDelete([]string{"--before", "3", "foo"}); err == nil {
 		t.Fatal("expected error outside git repo")
+	}
+}
+
+func TestCmdDeleteBeforeInfersFolder(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "w/1")
+	run(t, dir, "git", "branch", "w/2")
+	run(t, dir, "git", "branch", "w/3")
+	run(t, dir, "git", "branch", "w/temp")
+	run(t, dir, "git", "checkout", "w/3")
+
+	withStdin(t, "y\n")
+
+	if err := cmdDelete([]string{"--before", "2"}); err != nil {
+		t.Fatal(err)
+	}
+
+	kept := branchList(t, dir, "w/*")
+	// Should keep: w/2, w/3, w/temp
+	if len(kept) != 3 || slices.Contains(kept, "w/1") {
+		t.Errorf("expected w/2, w/3, w/temp kept, got: %v", kept)
+	}
+}
+
+func TestCmdDeleteBeforeBare(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "v/1")
+	run(t, dir, "git", "branch", "v/2")
+	run(t, dir, "git", "branch", "v/3")
+	run(t, dir, "git", "branch", "v/4")
+	run(t, dir, "git", "checkout", "v/3")
+
+	withStdin(t, "y\n")
+
+	if err := cmdDelete([]string{"--before"}); err != nil {
+		t.Fatal(err)
+	}
+
+	kept := branchList(t, dir, "v/*")
+	// Should keep: v/3, v/4
+	if len(kept) != 2 || slices.Contains(kept, "v/1") || slices.Contains(kept, "v/2") {
+		t.Errorf("expected v/3, v/4 kept, got: %v", kept)
+	}
+}
+
+func TestCmdDeleteBeforeFolderWithoutNumber(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "u/1")
+	run(t, dir, "git", "branch", "u/2")
+
+	if err := cmdDelete([]string{"--before", "u"}); err == nil {
+		t.Fatal("expected error for folder without number")
+	}
+
+	kept := branchList(t, dir, "u/*")
+	if len(kept) != 2 {
+		t.Errorf("expected branches untouched, got: %v", kept)
+	}
+}
+
+func TestCmdDeleteBeforeBareNotOnFolderBranch(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	run(t, dir, "git", "branch", "t/1")
+	run(t, dir, "git", "branch", "t/2")
+
+	if err := cmdDelete([]string{"--before"}); err == nil {
+		t.Fatal("expected error when not on a folder branch")
+	}
+
+	kept := branchList(t, dir, "t/*")
+	if len(kept) != 2 {
+		t.Errorf("expected branches untouched, got: %v", kept)
 	}
 }
 
@@ -889,7 +970,7 @@ func TestForceFlag(t *testing.T) {
 		forceFlag = false
 	})
 
-	t.Run("delete --upto with --force", func(t *testing.T) {
+	t.Run("delete --before with --force", func(t *testing.T) {
 		dir := initTestRepo(t)
 		inDir(t, dir)
 		run(t, dir, "git", "checkout", "-b", "upto/1")
@@ -898,7 +979,7 @@ func TestForceFlag(t *testing.T) {
 		run(t, dir, "git", "checkout", "main")
 
 		forceFlag = false
-		args := parseGlobalFlags([]string{"--force", "delete", "--upto", "3", "upto"})
+		args := parseGlobalFlags([]string{"--force", "delete", "--before", "3", "upto"})
 		if !forceFlag {
 			t.Fatal("--force flag not parsed")
 		}
@@ -999,7 +1080,7 @@ func TestDeleteCheckedOutBranch(t *testing.T) {
 	})
 }
 
-func TestDeleteUptoCheckedOutBranch(t *testing.T) {
+func TestDeleteBeforeCheckedOutBranch(t *testing.T) {
 	t.Run("without force - should error", func(t *testing.T) {
 		dir := initTestRepo(t)
 		inDir(t, dir)
@@ -1009,7 +1090,7 @@ func TestDeleteUptoCheckedOutBranch(t *testing.T) {
 		run(t, dir, "git", "checkout", "test/1")
 
 		forceFlag = false
-		err := cmdDelete([]string{"--upto", "3", "test"})
+		err := cmdDelete([]string{"--before", "3", "test"})
 		if err == nil {
 			t.Fatal("expected error when deleting checked-out branch")
 		}
@@ -1034,7 +1115,7 @@ func TestDeleteUptoCheckedOutBranch(t *testing.T) {
 
 		forceFlag = true
 		defer func() { forceFlag = false }()
-		err := cmdDelete([]string{"--upto", "3", "test"})
+		err := cmdDelete([]string{"--before", "3", "test"})
 		if err != nil {
 			t.Fatalf("unexpected error with --force: %v", err)
 		}

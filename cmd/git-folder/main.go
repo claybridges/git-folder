@@ -310,24 +310,37 @@ func cmdIncrement(args []string) error {
 }
 
 func cmdDelete(args []string) error {
-	var uptoSet bool
-	var upto float64
+	var beforeSet, beforeHasNumber bool
+	var before float64
 	var rest []string
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--upto" {
-			if i+1 >= len(args) {
-				return fmt.Errorf("--upto requires a number")
+		if args[i] == "--before" {
+			beforeSet = true
+			if i+1 < len(args) {
+				if n, err := strconv.ParseFloat(args[i+1], 64); err == nil {
+					before = n
+					beforeHasNumber = true
+					i++
+				}
 			}
-			n, err := strconv.ParseFloat(args[i+1], 64)
-			if err != nil {
-				return fmt.Errorf("invalid --upto number: %s", args[i+1])
-			}
-			upto = n
-			uptoSet = true
-			i++
 		} else {
 			rest = append(rest, args[i])
 		}
+	}
+
+	if beforeSet && !beforeHasNumber {
+		if len(rest) > 0 {
+			return fmt.Errorf("--before requires a number when a folder is given")
+		}
+		cur, err := folder.CurrentBranch()
+		if err != nil {
+			return err
+		}
+		n, ok := folder.NumberFloat(cur)
+		if cur == "" || !ok {
+			return fmt.Errorf("not on a numbered folder branch; pass --before <n>")
+		}
+		before = n
 	}
 
 	name, err := resolveFolder(rest)
@@ -344,17 +357,17 @@ func cmdDelete(args []string) error {
 	}
 
 	var toKeep, toDelete []string
-	if uptoSet {
+	if beforeSet {
 		for _, b := range branches {
 			num, ok := folder.NumberFloat(b)
-			if ok && num < upto {
+			if ok && num < before {
 				toDelete = append(toDelete, b)
 			} else {
 				toKeep = append(toKeep, b)
 			}
 		}
 		if len(toDelete) == 0 {
-			return fmt.Errorf("no numbered branches below %v in folder %s/", upto, name)
+			return fmt.Errorf("no numbered branches below %v in folder %s/", before, name)
 		}
 	} else {
 		toDelete = branches
@@ -365,7 +378,7 @@ func cmdDelete(args []string) error {
 		return err
 	}
 
-	if uptoSet {
+	if beforeSet {
 		fmt.Printf("keep:\n")
 		for _, b := range toKeep {
 			fmt.Printf("  %s\n", b)
@@ -552,7 +565,7 @@ _git-folder() {
         'list:list branches in a folder'
         'max:print max branch or number'
         'increment:create next numbered branch'
-        'delete:delete all branches in a folder (use --upto N to keep N+)'
+        'delete:delete all branches in a folder (use --before [N] to keep N+)'
         'squash:increment and squash commits'
         'rename:rename a folder prefix'
         'version:show version'
@@ -568,8 +581,8 @@ _git-folder() {
             _describe 'command' commands
             ;;
         args)
-            # After --upto, expect a numeric threshold; don't suggest folders.
-            if [[ ${words[CURRENT-1]} == "--upto" ]]; then
+            # After --before, expect a numeric threshold; don't suggest folders.
+            if [[ ${words[CURRENT-1]} == "--before" ]]; then
                 return
             fi
             case $words[1] in
