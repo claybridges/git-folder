@@ -72,6 +72,11 @@ tasks:
     cmds:
       - go run scripts/installHooks.go
 
+  uninstall-hooks:
+    desc: Remove the git hooks installed by install-hooks
+    cmds:
+      - go run scripts/installHooks.go --uninstall
+
   use-brew:
     desc: Switch back to Homebrew version
     cmds:

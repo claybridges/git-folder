@@ -118,7 +118,13 @@ To rebuild the dev version automatically whenever local `main` moves (`git pull`
 go tool task install-hooks
 ```
 
-It copies the hook into the repo's shared hooks dir, so all worktrees get it. Re-run it after `scripts/` changes.
+It symlinks the hook into the repo's shared hooks dir, so all worktrees get it, and `scripts/` changes take effect without re-installing. The link points into the checkout you ran it from, so run it from the main checkout; it dangles if that checkout is removed or its tree predates `scripts/`.
+
+To remove it:
+
+```
+go tool task uninstall-hooks
+```
 
 ## Colophon
 

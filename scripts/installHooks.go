@@ -1,12 +1,13 @@
 //usr/bin/env go run "$0" "$@"; exit
 //go:build ignore
 
-// Copies the committed hooks (and the script they launch) into the repo's shared hooks dir, which all worktrees use.
-// Copies, not symlinks, so the hook keeps working on checkouts that don't contain scripts/. Re-run after changing them.
+// Symlinks the committed hooks into the repo's shared hooks dir, which all worktrees use. The link points into the
+// checkout this runs from, so edits to scripts/ take effect without re-installing.
+//
+// Usage: installHooks.go [--uninstall]
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,47 +30,88 @@ func main() {
 			hooksDir, _ = filepath.Abs(path)
 		}
 	}
+
+	if len(os.Args) > 1 && os.Args[1] == "--uninstall" {
+		uninstall(scriptsDir, hooksDir, commonDir)
+		return
+	}
+	install(scriptsDir, hooksDir)
+}
+
+// ours reports whether a hook symlink target is one of our committed hooks, wherever the checkout is.
+func ours(name, target string) bool {
+	return strings.HasSuffix(target, "/scripts/hooks/"+name)
+}
+
+func install(scriptsDir, hooksDir string) {
 	must(os.MkdirAll(hooksDir, 0o755))
-
-	// The support script is ours to overwrite; hooks are not, if they differ from what we'd install.
-	copyFile(filepath.Join(scriptsDir, "rebuildDevBinary.go"), filepath.Join(hooksDir, "rebuildDevBinary.go"))
-
+	if strings.Contains(scriptsDir, "/.worktrees/") {
+		fmt.Fprintln(os.Stderr, "warning: installing from a worktree; the link dangles if it is removed."+
+			" Prefer running this from the main checkout.")
+	}
 	entries, err := os.ReadDir(filepath.Join(scriptsDir, "hooks"))
 	must(err)
 	for _, entry := range entries {
 		name := entry.Name()
 		source := filepath.Join(scriptsDir, "hooks", name)
 		target := filepath.Join(hooksDir, name)
-		want, err := os.ReadFile(source)
-		must(err)
-		have, err := os.ReadFile(target)
+		info, err := os.Lstat(target)
 		switch {
 		case err != nil:
-			copyFile(source, target)
-			fmt.Printf("%s: installed %s\n", name, target)
-		case bytes.Equal(have, want):
-			fmt.Printf("%s: already installed\n", name)
-		case bytes.Contains(have, []byte("rebuildDevBinary.go")):
-			copyFile(source, target)
-			fmt.Printf("%s: updated %s\n", name, target)
+			must(os.Symlink(source, target))
+			fmt.Printf("%s: linked %s -> %s\n", name, target, source)
+		case info.Mode()&os.ModeSymlink == 0:
+			fmt.Fprintf(os.Stderr, "%s: refusing to overwrite existing file %s\n", name, target)
 		default:
-			fmt.Fprintf(os.Stderr, "%s: refusing to overwrite different existing %s\n", name, target)
+			current, _ := os.Readlink(target)
+			switch {
+			case current == source:
+				fmt.Printf("%s: already installed\n", name)
+			case ours(name, current):
+				must(os.Remove(target))
+				must(os.Symlink(source, target))
+				fmt.Printf("%s: updated %s -> %s (was %s)\n", name, target, source, current)
+			default:
+				fmt.Fprintf(os.Stderr, "%s: refusing to overwrite symlink %s -> %s\n", name, target, current)
+			}
 		}
 	}
+}
+
+// uninstall removes only symlinks to our hooks, dangling or not; anything else is left alone.
+func uninstall(scriptsDir, hooksDir, commonDir string) {
+	removed := false
+	entries, err := os.ReadDir(filepath.Join(scriptsDir, "hooks"))
+	must(err)
+	for _, entry := range entries {
+		name := entry.Name()
+		target := filepath.Join(hooksDir, name)
+		info, err := os.Lstat(target)
+		switch {
+		case err != nil:
+		case info.Mode()&os.ModeSymlink == 0:
+			fmt.Fprintf(os.Stderr, "%s: not a symlink, leaving %s\n", name, target)
+		default:
+			current, _ := os.Readlink(target)
+			if !ours(name, current) {
+				fmt.Fprintf(os.Stderr, "%s: links to %s, not ours, leaving %s\n", name, current, target)
+				continue
+			}
+			must(os.Remove(target))
+			fmt.Printf("%s: removed %s\n", name, target)
+			removed = true
+		}
+	}
+	if !removed {
+		fmt.Println("nothing to remove")
+	}
+	fmt.Printf("log and lock files left in %s (rebuildDevBinary.*)\n", commonDir)
 }
 
 // scriptsDirectory is the directory holding this file. `go run` builds in a temp dir, so os.Executable won't do.
 func scriptsDirectory() string {
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Dir(file)
-}
-
-func copyFile(source, target string) {
-	data, err := os.ReadFile(source)
-	must(err)
-	tmp := target + ".tmp"
-	must(os.WriteFile(tmp, data, 0o755))
-	must(os.Rename(tmp, target))
 }
 
 func must(err error) {
