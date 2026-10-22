@@ -1730,3 +1730,17 @@ func TestLockListAfterUnlock(t *testing.T) {
 		t.Errorf("list = %q, want bbb", out)
 	}
 }
+
+func TestCompletionScriptSyntax(t *testing.T) {
+	zsh, err := exec.LookPath("zsh")
+	if err != nil {
+		t.Skip("zsh not on PATH")
+	}
+	script := filepath.Join(t.TempDir(), "_git-folder")
+	if err := os.WriteFile(script, []byte(run(t, t.TempDir(), binaryPath, "completion")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command(zsh, "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("zsh -n failed: %v\n%s", err, out)
+	}
+}
