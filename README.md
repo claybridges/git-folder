@@ -112,6 +112,12 @@ go tool task use-dev
 go tool task use-brew
 ```
 
+To just remove the dev version, without needing brew:
+
+```
+go tool task dev:uninstall
+```
+
 > [!NOTE]
 > The dev version installs to the first of `$XDG_BIN_HOME`, `~/.local/bin`, or `~/bin`. 
 

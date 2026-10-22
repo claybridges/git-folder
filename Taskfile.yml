@@ -77,16 +77,23 @@ tasks:
     cmds:
       - go run scripts/installHooks.go --uninstall
 
-  use-brew:
-    desc: Switch back to Homebrew version (also removes the rebuild hook)
+  dev:uninstall:
+    desc: Remove the local dev binary and the rebuild hook, without needing brew
     cmds:
       - task: main-hook:uninstall
       - rm -f "{{.LOCAL_BIN}}"
+      - echo "✓ Removed {{.LOCAL_BIN}}"
+
+  use-brew:
+    desc: Switch back to Homebrew version (also removes the rebuild hook)
+    cmds:
       - |
         if ! brew list --formula {{.BINARY_NAME}} &>/dev/null; then
-          echo "Error: {{.BINARY_NAME}} not installed via brew"
+          echo "Error: {{.BINARY_NAME}} not installed via brew (brew install claybridges/tap/{{.BINARY_NAME}})"
           exit 1
         fi
+      - task: main-hook:uninstall
+      - rm -f "{{.LOCAL_BIN}}"
       - brew link {{.BINARY_NAME}}
       - echo "✓ Using brew version"
       - "{{.BINARY_NAME}} version"
