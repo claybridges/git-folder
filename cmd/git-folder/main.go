@@ -329,7 +329,7 @@ func cmdDelete(args []string) error {
 	}
 
 	if beforeSet && len(rest) > 1 {
-		return fmt.Errorf("--before takes a single folder")
+		return fmt.Errorf("--before takes only a single folder")
 	}
 
 	if beforeSet && !beforeHasNumber {

@@ -517,7 +517,7 @@ func TestCmdDeleteBeforeMultipleFolders(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for --before with two folders")
 	}
-	if !strings.Contains(err.Error(), "--before takes a single folder") {
+	if !strings.Contains(err.Error(), "--before takes only a single folder") {
 		t.Errorf("unexpected error: %v", err)
 	}
 	if branches := branchList(t, dir, "a/*"); len(branches) != 1 {
