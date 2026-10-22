@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -132,6 +133,10 @@ func main() {
 		err = cmdDelete(args[1:])
 	case "squash":
 		err = cmdSquash()
+	case "lock":
+		err = cmdLock(args[1:])
+	case "unlock":
+		err = cmdUnlock(args[1:])
 	case "rename":
 		err = cmdRename(args[1:])
 	case "completion":
@@ -363,6 +368,10 @@ func cmdDelete(args []string) error {
 		}
 	}
 
+	if err := refuseLocked(names...); err != nil {
+		return err
+	}
+
 	// Enumerate every folder before any side effect; one empty folder fails the whole command.
 	folderBranches := make([][]string, len(names))
 	for i, name := range names {
@@ -451,6 +460,10 @@ func cmdRename(args []string) error {
 		return err
 	}
 
+	if err := refuseLocked(oldName, newName); err != nil {
+		return err
+	}
+
 	sources, err := folder.Enumerate(oldName)
 	if err != nil {
 		return err
@@ -501,6 +514,76 @@ func cmdRename(args []string) error {
 			return fmt.Errorf("failed to rename %s -> %s: %w", p.from, p.to, err)
 		}
 	}
+	return nil
+}
+
+// refuseLocked errors if any of the named folders is locked; --force does not override.
+func refuseLocked(names ...string) error {
+	locked, err := folder.LockedFolders()
+	if err != nil {
+		return err
+	}
+	var hits []string
+	for _, n := range names {
+		if slices.Contains(locked, n) {
+			hits = append(hits, n)
+		}
+	}
+	switch len(hits) {
+	case 0:
+		return nil
+	case 1:
+		return fmt.Errorf("folder %s/ is locked; run git folder unlock %s first", hits[0], hits[0])
+	default:
+		list := strings.Join(hits, "/, ") + "/"
+		return fmt.Errorf("folders %s are locked; run git folder unlock <folder> for each first", list)
+	}
+}
+
+func cmdLock(args []string) error {
+	name, err := resolveFolder(args)
+	if err != nil {
+		return err
+	}
+	branches, err := folder.Enumerate(name)
+	if err != nil {
+		return err
+	}
+	if len(branches) == 0 {
+		return fmt.Errorf("no branches in folder %s/", name)
+	}
+	already, err := folder.IsLocked(name)
+	if err != nil {
+		return err
+	}
+	if already {
+		fmt.Printf("already locked %s/\n", name)
+		return nil
+	}
+	if err := folder.Lock(name); err != nil {
+		return err
+	}
+	fmt.Printf("locked %s/\n", name)
+	return nil
+}
+
+func cmdUnlock(args []string) error {
+	name, err := resolveFolder(args)
+	if err != nil {
+		return err
+	}
+	was, err := folder.IsLocked(name)
+	if err != nil {
+		return err
+	}
+	if !was {
+		fmt.Printf("already unlocked %s/\n", name)
+		return nil
+	}
+	if err := folder.Unlock(name); err != nil {
+		return err
+	}
+	fmt.Printf("unlocked %s/\n", name)
 	return nil
 }
 
@@ -593,6 +676,8 @@ _git-folder() {
         'delete:delete all branches in a folder (use --before [N] to keep N+)'
         'squash:increment and squash commits'
         'rename:rename a folder prefix'
+        'lock:protect a folder from delete and rename'
+        'unlock:remove a folder lock'
         'version:show version'
         'help:show usage'
     )
@@ -611,8 +696,11 @@ _git-folder() {
                 return
             fi
             case $words[1] in
-                list|delete|increment|rename)
+                list|delete|increment|rename|lock)
                     _git-folder-folders
+                    ;;
+                unlock)
+                    _git-folder-locked
                     ;;
             esac
             ;;
@@ -627,6 +715,17 @@ _git-folder-folders() {
             | sed 's|/.*||'
     )"}})
     [[ ${#folders} -gt 0 ]] && compadd -- "${folders[@]}"
+}
+
+# Locked folders only; falls back to all folders when none are locked.
+_git-folder-locked() {
+    local -a locked
+    locked=(${(f)"$(git config --get-all folder.locked 2>/dev/null)"})
+    if [[ ${#locked} -gt 0 ]]; then
+        compadd -- "${locked[@]}"
+    else
+        _git-folder-folders
+    fi
 }
 
 # Also hook into 'git folder' as a git subcommand

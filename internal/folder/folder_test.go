@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"testing"
 )
 
@@ -390,5 +391,76 @@ func TestCurrentFolderGitError(t *testing.T) {
 	}
 	if cur != "" {
 		t.Errorf("got %q, want empty on git error", cur)
+	}
+}
+
+// --- Locks ---
+
+func TestLockedFoldersNoneSet(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	locked, err := LockedFolders()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(locked) != 0 {
+		t.Errorf("expected no locked folders, got %v", locked)
+	}
+	if is, err := IsLocked("a"); err != nil || is {
+		t.Errorf("IsLocked(a) = %v, %v; want false, nil", is, err)
+	}
+}
+
+func TestLockUnlock(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	for _, name := range []string{"a", "b", "a"} {
+		if err := Lock(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	locked, err := LockedFolders()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(locked, []string{"a", "b"}) {
+		t.Fatalf("locked = %v, want [a b] (no duplicates)", locked)
+	}
+
+	if err := Unlock("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Unlock("a"); err != nil {
+		t.Fatalf("second unlock should succeed: %v", err)
+	}
+	if is, _ := IsLocked("a"); is {
+		t.Error("a still locked")
+	}
+	if is, _ := IsLocked("b"); !is {
+		t.Error("b should stay locked")
+	}
+}
+
+func TestUnlockDoesNotMatchSubstring(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	if err := Lock("abc"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Unlock("a.c"); err != nil {
+		t.Fatal(err)
+	}
+	if is, _ := IsLocked("abc"); !is {
+		t.Error("abc should stay locked")
+	}
+}
+
+func TestLockedFoldersGitError(t *testing.T) {
+	withMockGit(t, failGit)
+	if _, err := LockedFolders(); err == nil {
+		t.Fatal("expected error")
 	}
 }

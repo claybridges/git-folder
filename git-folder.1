@@ -11,6 +11,8 @@ git folder increment [<folder>]
 git folder squash
 git folder delete [\-\-force] [\-\-before [<n>]] [<folder>...]
 git folder rename [\-\-force] <old> <new>
+git folder lock [<folder>]
+git folder unlock [<folder>]
 git folder max [branch|number] [<folder>]
 .EE
 .SH DESCRIPTION
@@ -47,6 +49,7 @@ With \f[B]\(enbefore\f[R] \f[I]<n>\f[R], delete only numeric branches
 with suffix less than \f[I]n\f[R]; non\-numeric branches (e.g.
 \f[CR]async/temp\f[R]) are preserved.
 Prompts for confirmation unless \f[CR]\-\-force\f[R] is set.
+Refuses locked folders; see \f[B]lock\f[R].
 A bare \f[B]\(enbefore\f[R] takes both the folder and \f[I]n\f[R] from
 the current branch, which must be numbered; it is an error to name a
 folder without a number.
@@ -55,6 +58,26 @@ folder without a number.
 \f[B]rename\f[R] \f[I]<old>\f[R] \f[I]<new>\f[R]
 Rename all branches from prefix \f[I]old\f[R] to \f[I]new\f[R].
 Prompts for confirmation unless \f[CR]\-\-force\f[R] is set.
+Refuses if \f[I]old\f[R] or \f[I]new\f[R] is locked; see \f[B]lock\f[R].
+.TP
+\f[B]lock\f[R] \f[I][folder]\f[R]
+Lock the folder so that \f[B]delete\f[R] and \f[B]rename\f[R] refuse to
+touch it, for folders meant to be semi\-permanent.
+If \f[I]folder\f[R] is omitted, infers from the current branch.
+Errors if the folder has no branches.
+Locking a locked folder does nothing.
+The lock is stored in the repository\(cqs git config as a value of the
+multi\-valued key \f[CR]folder.locked\f[R].
+\f[B]\(enforce\f[R] does not override a lock, and a raw
+\f[CR]git branch \-D\f[R] is not prevented.
+Locked folders can still be incremented, squashed and rebased.
+.TP
+\f[B]unlock\f[R] \f[I][folder]\f[R]
+Remove the folder\(cqs lock.
+If \f[I]folder\f[R] is omitted, infers from the current branch.
+Does not require the folder to have branches, so a leftover lock can be
+cleared.
+Unlocking an unlocked folder does nothing.
 .SH LOW\-LEVEL COMMANDS (PLUMBING)
 .TP
 \f[B]max\f[R] [\f[B]branch\f[R]|\f[B]number\f[R]] [\f[I]<folder>\f[R]]

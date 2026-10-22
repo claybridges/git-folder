@@ -1,9 +1,11 @@
 package folder
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -163,4 +165,55 @@ var GitRunner = func(args ...string) (string, error) {
 
 func git(args ...string) (string, error) {
 	return GitRunner(args...)
+}
+
+const lockKey = "folder.locked"
+
+// configExit reports whether err is a git failure with the given exit status.
+func configExit(err error, code int) bool {
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitCode() == code
+}
+
+// LockedFolders returns the names of all locked folders. No key set is not an error.
+func LockedFolders() ([]string, error) {
+	out, err := git("config", "--get-all", lockKey)
+	if err != nil {
+		if configExit(err, 1) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(out, "\n"), nil
+}
+
+// IsLocked reports whether the folder is locked.
+func IsLocked(name string) (bool, error) {
+	locked, err := LockedFolders()
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(locked, name), nil
+}
+
+// Lock marks the folder as locked. Locking a locked folder is a no-op.
+func Lock(name string) error {
+	already, err := IsLocked(name)
+	if err != nil || already {
+		return err
+	}
+	_, err = git("config", "--add", lockKey, name)
+	return err
+}
+
+// Unlock clears the folder's lock. Unlocking an unlocked folder is a no-op.
+func Unlock(name string) error {
+	_, err := git("config", "--fixed-value", "--unset", lockKey, name)
+	if err != nil && configExit(err, 5) {
+		return nil
+	}
+	return err
 }

@@ -1425,3 +1425,245 @@ func TestDeleteMultipleBranchesInWorktrees(t *testing.T) {
 		t.Fatalf("expected both branches listed, got: %v", err)
 	}
 }
+
+// --- lock / unlock ---
+
+func lockedMessage(t *testing.T, err error) string {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected locked error")
+	}
+	if !strings.Contains(err.Error(), "locked") {
+		t.Fatalf("error should mention lock: %v", err)
+	}
+	return err.Error()
+}
+
+func TestLockThenDeleteRefuses(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "keep/1")
+	run(t, dir, "git", "branch", "keep/2")
+
+	if err := cmdLock([]string{"keep"}); err != nil {
+		t.Fatal(err)
+	}
+	withStdin(t, "y\n")
+	msg := lockedMessage(t, cmdDelete([]string{"keep"}))
+	if !strings.Contains(msg, "git folder unlock keep") {
+		t.Errorf("error should say how to fix: %s", msg)
+	}
+	assertBranchesExist(t, dir, withFolder("keep", "1", "2"))
+}
+
+func TestLockThenDeleteBeforeRefuses(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "keep/1")
+	run(t, dir, "git", "branch", "keep/2")
+
+	if err := cmdLock([]string{"keep"}); err != nil {
+		t.Fatal(err)
+	}
+	withStdin(t, "y\n")
+	lockedMessage(t, cmdDelete([]string{"--before", "2", "keep"}))
+	assertBranchesExist(t, dir, withFolder("keep", "1", "2"))
+}
+
+func TestLockThenDeleteMultipleRefusesAll(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "aaa/1")
+	run(t, dir, "git", "branch", "bbb/1")
+	run(t, dir, "git", "branch", "ccc/1")
+
+	if err := cmdLock([]string{"bbb"}); err != nil {
+		t.Fatal(err)
+	}
+	withStdin(t, "y\n")
+	msg := lockedMessage(t, cmdDelete([]string{"aaa", "bbb", "ccc"}))
+	if !strings.Contains(msg, "bbb") {
+		t.Errorf("error should name bbb: %s", msg)
+	}
+	assertBranchesExist(t, dir, []string{"aaa/1", "bbb/1", "ccc/1"})
+}
+
+func TestLockedDeleteListsEveryLockedFolder(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "aaa/1")
+	run(t, dir, "git", "branch", "bbb/1")
+
+	for _, n := range []string{"aaa", "bbb"} {
+		if err := cmdLock([]string{n}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	msg := lockedMessage(t, cmdDelete([]string{"aaa", "bbb"}))
+	if !strings.Contains(msg, "aaa") || !strings.Contains(msg, "bbb") {
+		t.Errorf("error should name both folders: %s", msg)
+	}
+}
+
+func TestLockThenRenameRefuses(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "old/1")
+
+	if err := cmdLock([]string{"old"}); err != nil {
+		t.Fatal(err)
+	}
+	withStdin(t, "y\n")
+	lockedMessage(t, cmdRename([]string{"old", "new"}))
+	assertBranchesExist(t, dir, []string{"old/1"})
+	if got := branchList(t, dir, "new/*"); len(got) != 0 {
+		t.Errorf("new/ should not exist: %v", got)
+	}
+}
+
+func TestRenameIntoLockedNameRefuses(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "src/1")
+	run(t, dir, "git", "config", "--add", "folder.locked", "dst")
+
+	withStdin(t, "y\n")
+	lockedMessage(t, cmdRename([]string{"src", "dst"}))
+	assertBranchesExist(t, dir, []string{"src/1"})
+}
+
+func TestLockForceDoesNotOverride(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "keep/1")
+	run(t, dir, "git", "branch", "keep/2")
+
+	if err := cmdLock([]string{"keep"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"delete", "--force", "keep"}, {"rename", "--force", "keep", "gone"}} {
+		cmd := exec.Command(binaryPath, args...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err == nil || !strings.Contains(string(out), "is locked") {
+			t.Fatalf("%v should fail as locked, err=%v out=%s", args, err, out)
+		}
+	}
+	assertBranchesExist(t, dir, withFolder("keep", "1", "2"))
+}
+
+func TestUnlockThenDeleteWorks(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "keep/1")
+
+	if err := cmdLock([]string{"keep"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdUnlock([]string{"keep"}); err != nil {
+		t.Fatal(err)
+	}
+	withStdin(t, "y\n")
+	if err := cmdDelete([]string{"keep"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := branchList(t, dir, "keep/*"); len(got) != 0 {
+		t.Errorf("branches not deleted: %v", got)
+	}
+}
+
+func TestLockUnlockIdempotent(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "branch", "keep/1")
+
+	var out []string
+	for _, fn := range []func([]string) error{cmdLock, cmdLock, cmdUnlock, cmdUnlock} {
+		out = append(out, captureStdout(t, func() {
+			if err := fn([]string{"keep"}); err != nil {
+				t.Fatal(err)
+			}
+		}))
+	}
+	want := []string{"locked keep/", "already locked keep/", "unlocked keep/", "already unlocked keep/"}
+	if !slices.Equal(out, want) {
+		t.Errorf("output = %q, want %q", out, want)
+	}
+}
+
+func TestLockEmptyFolderErrors(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	err := cmdLock([]string{"nonexistent"})
+	if err == nil || !strings.Contains(err.Error(), "no branches in folder nonexistent/") {
+		t.Fatalf("expected no-branches error, got %v", err)
+	}
+}
+
+func TestUnlockFolderWithoutBranches(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "config", "--add", "folder.locked", "ghost")
+
+	out := captureStdout(t, func() {
+		if err := cmdUnlock([]string{"ghost"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if out != "unlocked ghost/" {
+		t.Errorf("output = %q", out)
+	}
+}
+
+func TestLockUnlockInferFolder(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+	run(t, dir, "git", "checkout", "-b", "feat/1")
+
+	if err := cmdLock(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := run(t, dir, "git", "config", "--get-all", "folder.locked"); got != "feat" {
+		t.Fatalf("folder.locked = %q, want feat", got)
+	}
+	if err := cmdUnlock(nil); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "config", "--get-all", "folder.locked")
+	cmd.Dir = dir
+	if out, _ := cmd.Output(); strings.TrimSpace(string(out)) != "" {
+		t.Errorf("lock not cleared: %q", out)
+	}
+}
+
+func TestLockNotOnFolderBranch(t *testing.T) {
+	dir := initTestRepo(t)
+	inDir(t, dir)
+
+	if err := cmdLock(nil); err == nil {
+		t.Fatal("expected error off a folder branch")
+	}
+}
+
+func TestLockedFolderStillIncrementsAndSquashes(t *testing.T) {
+	dir := initTestRepo(t)
+	run(t, dir, "git", "checkout", "-b", "async/1")
+	for _, name := range []string{"one", "two"} {
+		if err := os.WriteFile(filepath.Join(dir, name+".txt"), []byte(name), 0644); err != nil {
+			t.Fatal(err)
+		}
+		run(t, dir, "git", "add", name+".txt")
+		run(t, dir, "git", "commit", "-m", name)
+	}
+	run(t, dir, "git", "config", "--add", "folder.locked", "async")
+
+	for _, args := range [][]string{{"increment"}, {"squash"}} {
+		cmd := exec.Command(binaryPath, args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v on locked folder failed: %v\n%s", args, err, out)
+		}
+	}
+	assertBranchesExist(t, dir, withFolder("async", "1", "2", "3"))
+}
