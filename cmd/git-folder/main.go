@@ -734,15 +734,11 @@ _git-folder-folders() {
     [[ ${#folders} -gt 0 ]] && compadd -- "${folders[@]}"
 }
 
-# Locked folders only; falls back to all folders when none are locked.
+# Locked folders only; offers nothing when none are locked.
 _git-folder-locked() {
     local -a locked
     locked=(${(f)"$(git config --get-all folder.locked 2>/dev/null)"})
-    if [[ ${#locked} -gt 0 ]]; then
-        compadd -- "${locked[@]}"
-    else
-        _git-folder-folders
-    fi
+    [[ ${#locked} -gt 0 ]] && compadd -- "${locked[@]}"
 }
 
 # Also hook into 'git folder' as a git subcommand
