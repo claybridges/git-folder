@@ -92,8 +92,8 @@ tasks:
           echo "Error: {{.BINARY_NAME}} not installed via brew (brew install claybridges/tap/{{.BINARY_NAME}})"
           exit 1
         fi
-      - rm -f "{{.LOCAL_BIN}}"
       - brew link {{.BINARY_NAME}}
+      - rm -f "{{.LOCAL_BIN}}"
       - echo "✓ Using brew version"
       - "{{.BINARY_NAME}} version"
 
